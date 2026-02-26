@@ -1,7 +1,7 @@
 <!-- ============================================================
      FIL: pages/recipe-used-ingredients.html  (HEL FIL)
      Sida 3: Använda ingredienser i recept
-     UI: central sök + tabell + högerpanel som visar recept (och “Byt ut” som flow)
+     Patch: flytta sök till hero + hjälp-popover (som Sida 1)
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -25,20 +25,49 @@
         </div>
       </div>
 
-      <div class="centerSlot">
-        <div class="searchWrap" style="max-width:780px; width:100%;">
-          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
-          </svg>
-          <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens eller recept…" autocomplete="off" />
-          <span class="kbd" title="Snabbtangent">/</span>
-        </div>
-      </div>
+      <!-- (Flyttat) Sökfältet ligger i hero nu -->
+      <div class="centerSlot"></div>
 
-      <div class="rightSlot">
+      <div class="rightSlot" style="position:relative;">
+        <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false">Hjälp</button>
+
         <a class="btn" href="./recipes.html" title="Recept">Recept</a>
         <a class="btn" href="./recipe-disabled-ingredients.html" title="Funktionshindrade ingredienser">Fel-ingr</a>
         <button class="btn btnPrimary" id="exportBtn">Exportera</button>
+
+        <!-- Hjälpruta (popover) -->
+        <div id="helpPop"
+             class="card"
+             role="dialog"
+             aria-label="Hjälp"
+             style="
+               display:none;
+               position:absolute;
+               right:0;
+               top:48px;
+               width:min(380px, 92vw);
+               padding:14px;
+               box-shadow: var(--shadow2);
+               z-index: 60;">
+          <div class="flexBetween">
+            <div style="font-weight:900;">Snabbhjälp</div>
+            <button class="iconBtn" id="helpClose" type="button" aria-label="Stäng hjälp">✕</button>
+          </div>
+
+          <div class="muted small mt12">
+            <div><span class="kbd">/</span> fokuserar sök</div>
+            <div><span class="kbd">Esc</span> stänger paneler</div>
+          </div>
+
+          <hr class="hr" />
+
+          <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
+          <ul class="muted small" style="margin:0 0 0 18px;">
+            <li>Sök ingrediens/recept med textfältet.</li>
+            <li>Klicka på en rad eller “Visa” för panelen.</li>
+            <li>I panelen kan du se recept, byta ut (demo) och skriva notering.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </header>
@@ -48,7 +77,16 @@
     <!-- HERO -->
     <section class="hero">
       <h1 class="heroTitle">Spåra ingredienser</h1>
-      <p class="heroSub">Håll listan ren. Klicka “Visa” för att öppna recept i ett eget fönster (högerpanel).</p>
+      <p class="heroSub">Håll listan ren. Öppna recept i eget fönster (högerpanel).</p>
+
+      <!-- Sökfält flyttat hit -->
+      <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
+        <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+        </svg>
+        <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens eller recept…" autocomplete="off" />
+        <span class="kbd" title="Snabbtangent">/</span>
+      </div>
 
       <div class="chipsRow" aria-label="Filter">
         <div class="chip">
@@ -168,6 +206,36 @@
   </aside>
 
   <script type="module">
+    // --- Hjälpruta (popover) ---
+    const $$ = (s) => document.querySelector(s);
+    const helpBtn = $$('#helpBtn');
+    const helpPop = $$('#helpPop');
+    const helpClose = $$('#helpClose');
+
+    function openHelp(){
+      helpPop.style.display = '';
+      helpBtn.setAttribute('aria-expanded', 'true');
+      setTimeout(() => {
+        const onDoc = (e) => {
+          if (!helpPop.contains(e.target) && e.target !== helpBtn){
+            document.removeEventListener('mousedown', onDoc);
+            closeHelp();
+          }
+        };
+        document.addEventListener('mousedown', onDoc);
+      }, 0);
+    }
+    function closeHelp(){
+      helpPop.style.display = 'none';
+      helpBtn.setAttribute('aria-expanded', 'false');
+    }
+    helpBtn.addEventListener('click', () => {
+      const open = helpPop.style.display !== 'none' && helpPop.style.display !== '';
+      if (open) closeHelp(); else openHelp();
+    });
+    helpClose.addEventListener('click', closeHelp);
+
+    // --- Page logic (befintlig) ---
     const $ = (sel) => document.querySelector(sel);
 
     const elBack = $('#backBtn');
@@ -243,8 +311,6 @@
       repPick: null,
       noteById: new Map()
     };
-
-    function text(v){ return (v ?? '').toString(); }
 
     function matches(item){
       if (item.recipes.length < state.min) return false;
@@ -401,6 +467,7 @@
       }
       if (e.key === 'Escape'){
         closeDrawer();
+        closeHelp();
       }
     });
 
