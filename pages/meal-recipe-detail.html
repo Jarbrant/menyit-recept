@@ -1,7 +1,11 @@
 <!-- ============================================================
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
      Sida 4: Måltidsrecept detalj / arbetsyta
-     UI: sticky actions + ingredienslista + sidopanel för klimat/näring + instruktioner
+     Patch:
+       - Läs ?id= och ladda måltidsrecept från FEJKDATA (assets/js/app.js)
+       - Visa underrecept + ingredienser
+       - Flytta sök till hero/arbetsyta (inte i topbar)
+       - Hjälp-popover i topbar
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -25,31 +29,82 @@
         </div>
       </div>
 
-      <div class="centerSlot">
-        <div class="searchWrap" style="max-width:780px; width:100%;">
-          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
-          </svg>
-          <input id="q" class="searchInput" type="search" placeholder="Sök i ingredienser…" autocomplete="off" />
-          <span class="kbd" title="Snabbtangent">/</span>
-        </div>
-      </div>
+      <!-- sök flyttat ner -->
+      <div class="centerSlot"></div>
 
-      <div class="rightSlot">
+      <div class="rightSlot" style="position:relative;">
+        <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false">Hjälp</button>
         <a class="btn" href="./recipes.html" title="Receptlista">Recept</a>
         <button class="btn" id="climateBtn">Klimat & näring</button>
         <button class="btn btnPrimary" id="saveBtn">Spara</button>
+
+        <!-- Hjälpruta (popover) -->
+        <div id="helpPop"
+             class="card"
+             role="dialog"
+             aria-label="Hjälp"
+             style="
+               display:none;
+               position:absolute;
+               right:0;
+               top:48px;
+               width:min(380px, 92vw);
+               padding:14px;
+               box-shadow: var(--shadow2);
+               z-index: 60;">
+          <div class="flexBetween">
+            <div style="font-weight:900;">Snabbhjälp</div>
+            <button class="iconBtn" id="helpClose" type="button" aria-label="Stäng hjälp">✕</button>
+          </div>
+
+          <div class="muted small mt12">
+            <div><span class="kbd">/</span> fokuserar sök</div>
+            <div><span class="kbd">Esc</span> stänger panel</div>
+          </div>
+
+          <hr class="hr" />
+
+          <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
+          <ul class="muted small" style="margin:0 0 0 18px;">
+            <li>Sidan öppnas med <span class="kbd">?id=mrX</span> från Receptlistan.</li>
+            <li>Du ser underrecept + ingredienser i listan.</li>
+            <li>Sök filtrerar ingredienslistan.</li>
+            <li>Klimat & näring öppnas i eget fönster (högerpanel).</li>
+          </ul>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Sticky actions (under topbar) -->
-  <div class="container" style="padding-top:12px;">
-    <div class="card" style="padding:12px 14px; position:sticky; top:64px; z-index:10;">
+  <main class="container">
+
+    <!-- HERO / arbetsyta -->
+    <section class="hero">
+      <h1 class="heroTitle" id="h1">Måltidsrecept</h1>
+      <p class="heroSub" id="hSub">Arbetsyta för måltiden. Underrecept visas tydligt.</p>
+
+      <!-- Sök här (inte topbar) -->
+      <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
+        <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+        </svg>
+        <input id="q" class="searchInput" type="search" placeholder="Sök i ingredienser…" autocomplete="off" />
+        <span class="kbd" title="Snabbtangent">/</span>
+      </div>
+
+      <div class="chipsRow" aria-label="Snabbinfo" style="margin-top:12px;">
+        <span class="badge badgeMuted" id="pillStatus">—</span>
+        <span class="badge badgeMuted" id="pillSubs">—</span>
+        <span class="badge badgeMuted" id="pillSize">—</span>
+      </div>
+    </section>
+
+    <!-- Sticky actions (under hero) -->
+    <div class="card mt16" style="padding:12px 14px; position:sticky; top:64px; z-index:10;">
       <div class="flexBetween">
         <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
           <span class="badge badgeMuted">MVP</span>
-          <span class="muted small">Ändringar sparas som demo i minne.</span>
+          <span class="muted small">Ändringar sparas som demo i minne (session).</span>
         </div>
 
         <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
@@ -66,11 +121,11 @@
           <div class="chip">
             <label for="sizeSel">Portionsstorlek</label>
             <select id="sizeSel">
-              <option value="350g">350 g</option>
-              <option value="400g">400 g</option>
-              <option value="450g">450 g</option>
-              <option value="500g" selected>500 g</option>
-              <option value="550g">550 g</option>
+              <option value="350 g">350 g</option>
+              <option value="400 g">400 g</option>
+              <option value="440 g">440 g</option>
+              <option value="500 g" selected>500 g</option>
+              <option value="550 g">550 g</option>
             </select>
           </div>
 
@@ -86,32 +141,35 @@
 
       <p class="muted small" id="saveNote" style="margin:10px 0 0 0;"></p>
     </div>
-  </div>
 
-  <main class="container">
+    <div class="grid grid2 mt16">
 
-    <div class="grid grid2">
-
-      <!-- LEFT: Ingredienser -->
+      <!-- LEFT: Underrecept + Ingredienser -->
       <section class="card" style="padding:18px;">
         <div class="flexBetween">
           <div>
-            <h2 style="margin:0; font-size:16px; font-weight:900;">Ingredienser</h2>
-            <div class="muted small">Justera mängd och enhet. Klicka på en rad för mer info.</div>
+            <h2 style="margin:0; font-size:16px; font-weight:900;">Underrecept & ingredienser</h2>
+            <div class="muted small">Underrecept visas först. Ingredienser filtreras av sökfältet.</div>
           </div>
           <button class="btn" id="addRow">+ Lägg till</button>
         </div>
 
         <hr class="hr" />
 
-        <div class="card tableCard" style="box-shadow:none;">
+        <div class="card" style="padding:14px; box-shadow:none;">
+          <div style="font-weight:900;">Underrecept</div>
+          <div class="muted small" id="subsHint" style="margin-top:6px;">—</div>
+          <ul id="subsList" style="margin:10px 0 0 18px;"></ul>
+        </div>
+
+        <div class="card mt16 tableCard" style="box-shadow:none;">
           <table class="table" aria-label="Ingredienser">
             <thead>
               <tr>
                 <th style="width:44%;">Ingrediens</th>
                 <th style="width:18%;">Mängd</th>
                 <th style="width:18%;">Enhet</th>
-                <th style="width:14%;">Pris</th>
+                <th style="width:14%;">Källa</th>
                 <th class="actions" style="width:6%;">—</th>
               </tr>
             </thead>
@@ -124,10 +182,10 @@
         </div>
       </section>
 
-      <!-- RIGHT: Instruktioner + notering -->
+      <!-- RIGHT: Text / instruktioner -->
       <aside class="card" style="padding:18px;">
         <h2 style="margin:0; font-size:16px; font-weight:900;">Gör så här</h2>
-        <p class="muted small" style="margin-top:6px;">Instruktioner ligger här för arbetsro. Klimat/näring öppnas i eget fönster.</p>
+        <p class="muted small" style="margin-top:6px;">Håll instruktioner här. Klimat/näring öppnas i eget fönster.</p>
 
         <div class="field mt16">
           <label for="title">Rubrik</label>
@@ -216,7 +274,7 @@
       </div>
 
       <div id="tab_history" style="display:none;">
-        <p class="muted small">Här kan ni senare visa exakt datum när leverantören uppdaterade en produkt + vad som ändrades.</p>
+        <p class="muted small">Visar datum + vad som ändrades (demo).</p>
         <div class="card" style="padding:14px; box-shadow:none;" id="histBox"></div>
       </div>
 
@@ -224,94 +282,200 @@
   </aside>
 
   <script type="module">
+    import { getMockDB, expandMeal } from '../assets/js/app.js';
+
     const $ = (sel) => document.querySelector(sel);
 
-    const elBack = $('#backBtn');
-    const elQ = $('#q');
+    // Help popover
+    const helpBtn = $('#helpBtn');
+    const helpPop = $('#helpPop');
+    const helpClose = $('#helpClose');
+    function openHelp(){
+      helpPop.style.display = '';
+      helpBtn.setAttribute('aria-expanded', 'true');
+      setTimeout(() => {
+        const onDoc = (e) => {
+          if (!helpPop.contains(e.target) && e.target !== helpBtn){
+            document.removeEventListener('mousedown', onDoc);
+            closeHelp();
+          }
+        };
+        document.addEventListener('mousedown', onDoc);
+      }, 0);
+    }
+    function closeHelp(){
+      helpPop.style.display = 'none';
+      helpBtn.setAttribute('aria-expanded', 'false');
+    }
+    helpBtn.addEventListener('click', () => {
+      const open = helpPop.style.display !== 'none' && helpPop.style.display !== '';
+      if (open) closeHelp(); else openHelp();
+    });
+    helpClose.addEventListener('click', closeHelp);
 
-    const elTbody = $('#tbody');
-    const elSaveBtn = $('#saveBtn');
-    const elSaveNote = $('#saveNote');
-
-    const elOverlay = $('#overlay');
-    const elDrawer = $('#drawer');
-    const elDSub = $('#dSub');
-    const elDClose = $('#dClose');
-    const elClimateBtn = $('#climateBtn');
-
-    const elPortions = $('#portionSel');
-    const elSize = $('#sizeSel');
-
-    const tabs = Array.from(document.querySelectorAll('.tab'));
+    // Drawer tabs
+    const tabs = Array.from(document.querySelectorAll('.drawer .tab'));
     const tabViews = {
       climate: $('#tab_climate'),
       energy: $('#tab_energy'),
-      history: $('#tab_history'),
+      history: $('#tab_history')
     };
-
-    // Demo state
-    const state = {
-      title: 'Fiskpanetter med kokt potatis och remouladsås',
-      desc: '',
-      steps: '1. Förbered ingredienser.\n2. Tillaga enligt rutin.\n3. Smaka av.\n4. Servera.',
-      note: '',
-      portions: 25,
-      size: '500g',
-      items: [
-        { id:'a1', name:'Fiskpanetter', qty:'2.5', unit:'kg', price:'—' },
-        { id:'a2', name:'Potatis', qty:'7.0', unit:'kg', price:'—' },
-        { id:'a3', name:'Remouladsås', qty:'1.2', unit:'kg', price:'—' },
-        { id:'a4', name:'Citron', qty:'0.2', unit:'kg', price:'—' }
-      ],
-      q: ''
-    };
-
-    function text(v){ return (v ?? '').toString(); }
-
-    function renderText(){
-      $('#title').value = state.title;
-      $('#desc').value = state.desc;
-      $('#steps').value = state.steps;
-      $('#note').value = state.note;
-      $('#subtitle').textContent = state.title;
+    function setTab(key){
+      for (const [k, el] of Object.entries(tabViews)){
+        el.style.display = (k === key) ? '' : 'none';
+      }
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
     }
 
-    function matchesItem(it){
+    // Elements
+    const elBack = $('#backBtn');
+    const elQ = $('#q');
+    const elTbody = $('#tbody');
+
+    const elOverlay = $('#overlay');
+    const elDrawer = $('#drawer');
+    const elDClose = $('#dClose');
+    const elClimateBtn = $('#climateBtn');
+
+    const elH1 = $('#h1');
+    const elHSub = $('#hSub');
+    const elSubtitle = $('#subtitle');
+
+    const pillStatus = $('#pillStatus');
+    const pillSubs = $('#pillSubs');
+    const pillSize = $('#pillSize');
+
+    const subsHint = $('#subsHint');
+    const subsList = $('#subsList');
+
+    const title = $('#title');
+    const desc = $('#desc');
+    const steps = $('#steps');
+    const note = $('#note');
+
+    const portionSel = $('#portionSel');
+    const sizeSel = $('#sizeSel');
+    const saveBtn = $('#saveBtn');
+    const saveNote = $('#saveNote');
+
+    // Load from ?id=
+    const db = getMockDB();
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id') || db.meals[0]; // fallback första måltiden
+
+    const { meal, subs } = expandMeal(db, id);
+
+    // Fail-closed-ish: om id inte är måltid
+    const activeMeal = (meal && meal.type === 'meal') ? meal : db.byId.get(db.meals[0]);
+    const expanded = expandMeal(db, activeMeal.id);
+
+    const state = {
+      meal: expanded.meal,
+      subs: expanded.subs,
+      q: '',
+      // ingredienser i tabell = meal-level + (valfritt) subs-ingredienser sammanfattade
+      rows: [],
+      editsText: {
+        title: expanded.meal.name,
+        desc: expanded.meal.desc || '',
+        steps: '1. Förbered ingredienser.\n2. Tillaga enligt rutin.\n3. Smaka av.\n4. Servera.',
+        note: ''
+      },
+      portions: parseInt(portionSel.value, 10) || 25,
+      size: sizeSel.value
+    };
+
+    function buildRows(){
+      // Meal-level ingredienser (källa = Måltid)
+      const out = [];
+      const mIng = Array.isArray(state.meal.ingredients) ? state.meal.ingredients : [];
+      for (const it of mIng){
+        out.push({
+          id: 'm_' + Math.random().toString(16).slice(2),
+          name: it.name,
+          qty: String(it.qty ?? ''),
+          unit: String(it.unit ?? ''),
+          source: 'Måltid'
+        });
+      }
+      // Underrecept ingredienser (källa = underrecept namn) – håller det enkelt: 1 rad per ingrediens
+      for (const s of state.subs){
+        const sIng = Array.isArray(s.ingredients) ? s.ingredients : [];
+        for (const it of sIng){
+          out.push({
+            id: 's_' + Math.random().toString(16).slice(2),
+            name: it.name,
+            qty: String(it.qty ?? ''),
+            unit: String(it.unit ?? ''),
+            source: s.name
+          });
+        }
+      }
+      state.rows = out;
+    }
+
+    function renderHeader(){
+      elH1.textContent = state.meal.name;
+      elHSub.textContent = state.meal.desc ? state.meal.desc : 'Arbetsyta för måltiden.';
+      elSubtitle.textContent = state.meal.name;
+
+      pillStatus.textContent = state.meal.status === 'active' ? 'Aktiv' : 'Inaktiv';
+      pillStatus.className = 'badge ' + (state.meal.status === 'active' ? 'badgeOk' : 'badgeMuted');
+
+      pillSubs.textContent = `${state.subs.length} underrecept`;
+      pillSize.textContent = state.meal.size || state.size || '—';
+
+      subsHint.textContent = state.subs.length ? 'Ingår i måltiden:' : 'Inga underrecept kopplade.';
+      subsList.textContent = '';
+      for (const s of state.subs){
+        const li = document.createElement('li');
+        li.textContent = s.name + (s.status === 'inactive' ? ' (inaktiv)' : '');
+        subsList.appendChild(li);
+      }
+    }
+
+    function renderText(){
+      title.value = state.editsText.title;
+      desc.value = state.editsText.desc;
+      steps.value = state.editsText.steps;
+      note.value = state.editsText.note;
+    }
+
+    function matchesRow(r){
       const q = state.q.trim().toLowerCase();
       if (!q) return true;
-      return `${it.name} ${it.unit}`.toLowerCase().includes(q);
+      return (`${r.name} ${r.source} ${r.unit}`).toLowerCase().includes(q);
     }
 
     function renderTable(){
       elTbody.textContent = '';
-      for (const it of state.items.filter(matchesItem)){
+      for (const r of state.rows.filter(matchesRow)){
         const tr = document.createElement('tr');
 
         const tdName = document.createElement('td');
-        tdName.textContent = it.name;
+        tdName.textContent = r.name;
 
         const tdQty = document.createElement('td');
         const qty = document.createElement('input');
         qty.className = 'input';
-        qty.value = it.qty;
-        qty.addEventListener('input', () => { it.qty = qty.value; });
+        qty.value = r.qty;
+        qty.addEventListener('input', () => r.qty = qty.value);
         tdQty.appendChild(qty);
 
         const tdUnit = document.createElement('td');
         const unit = document.createElement('select');
-        unit.innerHTML = '';
         ['g','kg','l','dl','st'].forEach(u => {
           const o = document.createElement('option');
           o.value = u;
           o.textContent = u;
-          if (it.unit === u) o.selected = true;
+          if (r.unit === u) o.selected = true;
           unit.appendChild(o);
         });
-        unit.addEventListener('change', () => { it.unit = unit.value; });
+        unit.addEventListener('change', () => r.unit = unit.value);
         tdUnit.appendChild(unit);
 
-        const tdPrice = document.createElement('td');
-        tdPrice.textContent = it.price;
+        const tdSrc = document.createElement('td');
+        tdSrc.textContent = r.source;
 
         const tdAct = document.createElement('td');
         tdAct.className = 'actions';
@@ -320,7 +484,7 @@
         del.title = 'Ta bort';
         del.textContent = '🗑';
         del.addEventListener('click', () => {
-          state.items = state.items.filter(x => x.id !== it.id);
+          state.rows = state.rows.filter(x => x !== r);
           renderTable();
         });
         tdAct.appendChild(del);
@@ -328,7 +492,7 @@
         tr.appendChild(tdName);
         tr.appendChild(tdQty);
         tr.appendChild(tdUnit);
-        tr.appendChild(tdPrice);
+        tr.appendChild(tdSrc);
         tr.appendChild(tdAct);
 
         elTbody.appendChild(tr);
@@ -341,47 +505,33 @@
       elDrawer.classList.add('open');
       elOverlay.setAttribute('aria-hidden', 'false');
     }
-
     function closeDrawer(){
       elOverlay.classList.remove('open');
       elDrawer.classList.remove('open');
       elOverlay.setAttribute('aria-hidden', 'true');
     }
 
-    function setTab(key){
-      for (const [k, el] of Object.entries(tabViews)){
-        el.style.display = (k === key) ? '' : 'none';
-      }
-      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
-    }
-
     function refreshDrawer(){
       const p = state.portions || 1;
-
-      // Demo-beräkning (placeholder)
-      const co2Total = '—';
-      const co2Per = '—';
-      $('#co2Total').textContent = co2Total;
-      $('#co2Per').textContent = co2Per;
-
+      $('#co2Total').textContent = '—';
+      $('#co2Per').textContent = '—';
       $('#energyDist').textContent = '—';
       $('#mealSize').textContent = state.size;
 
-      elDSub.textContent = `${p} portioner • ${state.size}`;
+      $('#dSub').textContent = `${p} portioner • ${state.size}`;
 
-      // Historik placeholder
       const hist = $('#histBox');
       hist.textContent = '';
-      const lines = [
-        '2026-02-20 • Leverantör: ändrade pris (exempel)',
-        '2026-02-12 • Produkt: uppdaterad förpackning (exempel)',
-        '2026-02-01 • Ny produkt upptäckt vid nattkörning (exempel)'
-      ];
-      for (const line of lines){
+      const arr = Array.isArray(state.meal.history) ? state.meal.history : [];
+      if (arr.length === 0){
+        hist.textContent = '—';
+        return;
+      }
+      for (const h of arr){
         const div = document.createElement('div');
         div.style.padding = '10px 0';
         div.style.borderBottom = '1px solid var(--border)';
-        div.textContent = line;
+        div.textContent = `${h.date} • ${h.change}`;
         hist.appendChild(div);
       }
     }
@@ -396,6 +546,7 @@
       }
       if (e.key === 'Escape'){
         closeDrawer();
+        closeHelp();
       }
     });
 
@@ -405,18 +556,24 @@
     });
 
     $('#addRow').addEventListener('click', () => {
-      const id = 'x' + Math.random().toString(16).slice(2);
-      state.items.unshift({ id, name:'Ny ingrediens', qty:'1', unit:'st', price:'—' });
+      state.rows.unshift({
+        id: 'x_' + Math.random().toString(16).slice(2),
+        name: 'Ny ingrediens',
+        qty: '1',
+        unit: 'st',
+        source: 'Måltid'
+      });
       renderTable();
     });
 
-    elPortions.addEventListener('change', () => {
-      state.portions = parseInt(elPortions.value, 10) || 1;
+    portionSel.addEventListener('change', () => {
+      state.portions = parseInt(portionSel.value, 10) || 1;
       refreshDrawer();
     });
 
-    elSize.addEventListener('change', () => {
-      state.size = elSize.value;
+    sizeSel.addEventListener('change', () => {
+      state.size = sizeSel.value;
+      pillSize.textContent = state.size;
       refreshDrawer();
     });
 
@@ -427,24 +584,24 @@
 
     elOverlay.addEventListener('click', closeDrawer);
     elDClose.addEventListener('click', closeDrawer);
-
     tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 
     $('#saveText').addEventListener('click', () => {
-      state.title = $('#title').value.trim() || state.title;
-      state.desc = $('#desc').value;
-      state.steps = $('#steps').value;
-      state.note = $('#note').value;
+      state.editsText.title = title.value.trim() || state.editsText.title;
+      state.editsText.desc = desc.value;
+      state.editsText.steps = steps.value;
+      state.editsText.note = note.value;
       $('#textNote').textContent = 'Sparat (demo).';
-      renderText();
     });
 
-    elSaveBtn.addEventListener('click', () => {
-      elSaveNote.textContent = 'Sparat (demo).';
-      setTimeout(() => { elSaveNote.textContent = ''; }, 2200);
+    saveBtn.addEventListener('click', () => {
+      saveNote.textContent = 'Sparat (demo).';
+      setTimeout(() => { saveNote.textContent = ''; }, 2200);
     });
 
     // Boot
+    buildRows();
+    renderHeader();
     renderText();
     renderTable();
     setTab('climate');
