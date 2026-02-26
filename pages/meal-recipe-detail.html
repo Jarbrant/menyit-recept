@@ -1,1 +1,454 @@
+<!-- ============================================================
+     FIL: pages/meal-recipe-detail.html  (HEL FIL)
+     Sida 4: Måltidsrecept detalj / arbetsyta
+     UI: sticky actions + ingredienslista + sidopanel för klimat/näring + instruktioner
+     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kostdata — Måltidsrecept detalj</title>
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
 
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <button class="backBtn" id="backBtn" title="Tillbaka" aria-label="Tillbaka">←</button>
+        <div>
+          <div class="pageTitle">Måltidsrecept</div>
+          <div class="muted small" id="subtitle">Detaljvy</div>
+        </div>
+      </div>
+
+      <div class="centerSlot">
+        <div class="searchWrap" style="max-width:780px; width:100%;">
+          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+          </svg>
+          <input id="q" class="searchInput" type="search" placeholder="Sök i ingredienser…" autocomplete="off" />
+          <span class="kbd" title="Snabbtangent">/</span>
+        </div>
+      </div>
+
+      <div class="rightSlot">
+        <a class="btn" href="./recipes.html" title="Receptlista">Recept</a>
+        <button class="btn" id="climateBtn">Klimat & näring</button>
+        <button class="btn btnPrimary" id="saveBtn">Spara</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sticky actions (under topbar) -->
+  <div class="container" style="padding-top:12px;">
+    <div class="card" style="padding:12px 14px; position:sticky; top:64px; z-index:10;">
+      <div class="flexBetween">
+        <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
+          <span class="badge badgeMuted">MVP</span>
+          <span class="muted small">Ändringar sparas som demo i minne.</span>
+        </div>
+
+        <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
+          <div class="chip">
+            <label for="portionSel">Portioner</label>
+            <select id="portionSel">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+
+          <div class="chip">
+            <label for="sizeSel">Portionsstorlek</label>
+            <select id="sizeSel">
+              <option value="350g">350 g</option>
+              <option value="400g">400 g</option>
+              <option value="450g">450 g</option>
+              <option value="500g" selected>500 g</option>
+              <option value="550g">550 g</option>
+            </select>
+          </div>
+
+          <div class="chip">
+            <label for="readySel">Beredd</label>
+            <select id="readySel">
+              <option value="no" selected>Nej</option>
+              <option value="yes">Ja</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted small" id="saveNote" style="margin:10px 0 0 0;"></p>
+    </div>
+  </div>
+
+  <main class="container">
+
+    <div class="grid grid2">
+
+      <!-- LEFT: Ingredienser -->
+      <section class="card" style="padding:18px;">
+        <div class="flexBetween">
+          <div>
+            <h2 style="margin:0; font-size:16px; font-weight:900;">Ingredienser</h2>
+            <div class="muted small">Justera mängd och enhet. Klicka på en rad för mer info.</div>
+          </div>
+          <button class="btn" id="addRow">+ Lägg till</button>
+        </div>
+
+        <hr class="hr" />
+
+        <div class="card tableCard" style="box-shadow:none;">
+          <table class="table" aria-label="Ingredienser">
+            <thead>
+              <tr>
+                <th style="width:44%;">Ingrediens</th>
+                <th style="width:18%;">Mängd</th>
+                <th style="width:18%;">Enhet</th>
+                <th style="width:14%;">Pris</th>
+                <th class="actions" style="width:6%;">—</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="muted small mt12">
+          Tips: skriv <span class="kbd">/</span> för att söka i listan.
+        </div>
+      </section>
+
+      <!-- RIGHT: Instruktioner + notering -->
+      <aside class="card" style="padding:18px;">
+        <h2 style="margin:0; font-size:16px; font-weight:900;">Gör så här</h2>
+        <p class="muted small" style="margin-top:6px;">Instruktioner ligger här för arbetsro. Klimat/näring öppnas i eget fönster.</p>
+
+        <div class="field mt16">
+          <label for="title">Rubrik</label>
+          <input class="input" id="title" type="text" />
+        </div>
+
+        <div class="field">
+          <label for="desc">Beskrivning</label>
+          <textarea class="input" id="desc" rows="4" style="resize:vertical;"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="steps">Instruktioner</label>
+          <textarea class="input" id="steps" rows="10" style="resize:vertical;"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="note">Notering</label>
+          <textarea class="input" id="note" rows="4" style="resize:vertical;" placeholder="Intern notering…"></textarea>
+        </div>
+
+        <button class="btn btnPrimary w100" id="saveText">Spara text (demo)</button>
+        <p class="muted small mt12" id="textNote"></p>
+      </aside>
+
+    </div>
+
+  </main>
+
+  <!-- OVERLAY + DRAWER: Klimat & näring -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  <aside class="drawer" id="drawer" aria-label="Klimat & näring">
+    <div class="drawerHeader">
+      <div>
+        <div class="drawerTitle">Klimat & näring</div>
+        <div class="muted small" id="dSub">—</div>
+      </div>
+      <button class="iconBtn" id="dClose" title="Stäng" aria-label="Stäng">✕</button>
+    </div>
+
+    <div class="drawerBody">
+      <div class="tabs" role="tablist" aria-label="Flikar">
+        <button class="tab active" data-tab="climate" type="button">Klimat</button>
+        <button class="tab" data-tab="energy" type="button">Energi</button>
+        <button class="tab" data-tab="history" type="button">Historik</button>
+      </div>
+
+      <div id="tab_climate">
+        <div class="card" style="padding:14px; box-shadow:none;">
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">CO₂e totalt</div>
+              <div class="muted small">Beräknad (demo)</div>
+            </div>
+            <span class="badge badgeMuted" id="co2Total">—</span>
+          </div>
+          <hr class="hr" />
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">CO₂e per portion</div>
+              <div class="muted small">Baserat på portioner</div>
+            </div>
+            <span class="badge badgeMuted" id="co2Per">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab_energy" style="display:none;">
+        <div class="card" style="padding:14px; box-shadow:none;">
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Energidistribution</div>
+              <div class="muted small">Fett / Kolhydrater / Protein</div>
+            </div>
+            <span class="badge badgeMuted" id="energyDist">—</span>
+          </div>
+          <hr class="hr" />
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Måltidsstorlek</div>
+              <div class="muted small">Portionsvikt</div>
+            </div>
+            <span class="badge badgeMuted" id="mealSize">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab_history" style="display:none;">
+        <p class="muted small">Här kan ni senare visa exakt datum när leverantören uppdaterade en produkt + vad som ändrades.</p>
+        <div class="card" style="padding:14px; box-shadow:none;" id="histBox"></div>
+      </div>
+
+    </div>
+  </aside>
+
+  <script type="module">
+    const $ = (sel) => document.querySelector(sel);
+
+    const elBack = $('#backBtn');
+    const elQ = $('#q');
+
+    const elTbody = $('#tbody');
+    const elSaveBtn = $('#saveBtn');
+    const elSaveNote = $('#saveNote');
+
+    const elOverlay = $('#overlay');
+    const elDrawer = $('#drawer');
+    const elDSub = $('#dSub');
+    const elDClose = $('#dClose');
+    const elClimateBtn = $('#climateBtn');
+
+    const elPortions = $('#portionSel');
+    const elSize = $('#sizeSel');
+
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const tabViews = {
+      climate: $('#tab_climate'),
+      energy: $('#tab_energy'),
+      history: $('#tab_history'),
+    };
+
+    // Demo state
+    const state = {
+      title: 'Fiskpanetter med kokt potatis och remouladsås',
+      desc: '',
+      steps: '1. Förbered ingredienser.\n2. Tillaga enligt rutin.\n3. Smaka av.\n4. Servera.',
+      note: '',
+      portions: 25,
+      size: '500g',
+      items: [
+        { id:'a1', name:'Fiskpanetter', qty:'2.5', unit:'kg', price:'—' },
+        { id:'a2', name:'Potatis', qty:'7.0', unit:'kg', price:'—' },
+        { id:'a3', name:'Remouladsås', qty:'1.2', unit:'kg', price:'—' },
+        { id:'a4', name:'Citron', qty:'0.2', unit:'kg', price:'—' }
+      ],
+      q: ''
+    };
+
+    function text(v){ return (v ?? '').toString(); }
+
+    function renderText(){
+      $('#title').value = state.title;
+      $('#desc').value = state.desc;
+      $('#steps').value = state.steps;
+      $('#note').value = state.note;
+      $('#subtitle').textContent = state.title;
+    }
+
+    function matchesItem(it){
+      const q = state.q.trim().toLowerCase();
+      if (!q) return true;
+      return `${it.name} ${it.unit}`.toLowerCase().includes(q);
+    }
+
+    function renderTable(){
+      elTbody.textContent = '';
+      for (const it of state.items.filter(matchesItem)){
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = it.name;
+
+        const tdQty = document.createElement('td');
+        const qty = document.createElement('input');
+        qty.className = 'input';
+        qty.value = it.qty;
+        qty.addEventListener('input', () => { it.qty = qty.value; });
+        tdQty.appendChild(qty);
+
+        const tdUnit = document.createElement('td');
+        const unit = document.createElement('select');
+        unit.innerHTML = '';
+        ['g','kg','l','dl','st'].forEach(u => {
+          const o = document.createElement('option');
+          o.value = u;
+          o.textContent = u;
+          if (it.unit === u) o.selected = true;
+          unit.appendChild(o);
+        });
+        unit.addEventListener('change', () => { it.unit = unit.value; });
+        tdUnit.appendChild(unit);
+
+        const tdPrice = document.createElement('td');
+        tdPrice.textContent = it.price;
+
+        const tdAct = document.createElement('td');
+        tdAct.className = 'actions';
+        const del = document.createElement('button');
+        del.className = 'iconBtn';
+        del.title = 'Ta bort';
+        del.textContent = '🗑';
+        del.addEventListener('click', () => {
+          state.items = state.items.filter(x => x.id !== it.id);
+          renderTable();
+        });
+        tdAct.appendChild(del);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdUnit);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdAct);
+
+        elTbody.appendChild(tr);
+      }
+    }
+
+    function openDrawer(){
+      refreshDrawer();
+      elOverlay.classList.add('open');
+      elDrawer.classList.add('open');
+      elOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDrawer(){
+      elOverlay.classList.remove('open');
+      elDrawer.classList.remove('open');
+      elOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setTab(key){
+      for (const [k, el] of Object.entries(tabViews)){
+        el.style.display = (k === key) ? '' : 'none';
+      }
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    }
+
+    function refreshDrawer(){
+      const p = state.portions || 1;
+
+      // Demo-beräkning (placeholder)
+      const co2Total = '—';
+      const co2Per = '—';
+      $('#co2Total').textContent = co2Total;
+      $('#co2Per').textContent = co2Per;
+
+      $('#energyDist').textContent = '—';
+      $('#mealSize').textContent = state.size;
+
+      elDSub.textContent = `${p} portioner • ${state.size}`;
+
+      // Historik placeholder
+      const hist = $('#histBox');
+      hist.textContent = '';
+      const lines = [
+        '2026-02-20 • Leverantör: ändrade pris (exempel)',
+        '2026-02-12 • Produkt: uppdaterad förpackning (exempel)',
+        '2026-02-01 • Ny produkt upptäckt vid nattkörning (exempel)'
+      ];
+      for (const line of lines){
+        const div = document.createElement('div');
+        div.style.padding = '10px 0';
+        div.style.borderBottom = '1px solid var(--border)';
+        div.textContent = line;
+        hist.appendChild(div);
+      }
+    }
+
+    // Events
+    elBack.addEventListener('click', () => history.back());
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement !== elQ){
+        e.preventDefault();
+        elQ.focus();
+      }
+      if (e.key === 'Escape'){
+        closeDrawer();
+      }
+    });
+
+    elQ.addEventListener('input', () => {
+      state.q = elQ.value;
+      renderTable();
+    });
+
+    $('#addRow').addEventListener('click', () => {
+      const id = 'x' + Math.random().toString(16).slice(2);
+      state.items.unshift({ id, name:'Ny ingrediens', qty:'1', unit:'st', price:'—' });
+      renderTable();
+    });
+
+    elPortions.addEventListener('change', () => {
+      state.portions = parseInt(elPortions.value, 10) || 1;
+      refreshDrawer();
+    });
+
+    elSize.addEventListener('change', () => {
+      state.size = elSize.value;
+      refreshDrawer();
+    });
+
+    elClimateBtn.addEventListener('click', () => {
+      openDrawer();
+      setTab('climate');
+    });
+
+    elOverlay.addEventListener('click', closeDrawer);
+    elDClose.addEventListener('click', closeDrawer);
+
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    $('#saveText').addEventListener('click', () => {
+      state.title = $('#title').value.trim() || state.title;
+      state.desc = $('#desc').value;
+      state.steps = $('#steps').value;
+      state.note = $('#note').value;
+      $('#textNote').textContent = 'Sparat (demo).';
+      renderText();
+    });
+
+    elSaveBtn.addEventListener('click', () => {
+      elSaveNote.textContent = 'Sparat (demo).';
+      setTimeout(() => { elSaveNote.textContent = ''; }, 2200);
+    });
+
+    // Boot
+    renderText();
+    renderTable();
+    setTab('climate');
+  </script>
+
+</body>
+</html>
