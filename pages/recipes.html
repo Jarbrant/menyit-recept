@@ -1,1 +1,532 @@
+<!-- ============================================================
+     FIL: pages/recipes.html  (HEL FIL)
+     Sida 1: Receptlista (modern) — central sök + ren tabell + högerpanel (drawer)
+     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent), fail-soft UI
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kostdata — Recept</title>
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
 
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <button class="backBtn" id="backBtn" title="Tillbaka" aria-label="Tillbaka">←</button>
+        <div>
+          <div class="pageTitle">Recept</div>
+          <div class="muted small">Sök och hantera recept</div>
+        </div>
+      </div>
+
+      <div class="centerSlot">
+        <div class="searchWrap" style="max-width:780px; width:100%;">
+          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+          </svg>
+          <input id="q" class="searchInput" type="search" placeholder="Sök recept, ingrediens, artikelnummer…" autocomplete="off" />
+          <span class="kbd" title="Snabbtangent">/</span>
+        </div>
+      </div>
+
+      <div class="rightSlot">
+        <a class="btn" href="./recipe-disabled-ingredients.html" title="Funktionshindrade ingredienser">Fel-ingr</a>
+        <a class="btn" href="./recipe-used-ingredients.html" title="Använda ingredienser">Anv-ingr</a>
+        <button class="btn btnPrimary" id="createBtn">+ Skapa ny</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- HERO (centralt sök – Bild 5 känsla) -->
+    <section class="hero">
+      <h1 class="heroTitle">Sök recept</h1>
+      <p class="heroSub">Skriv för att filtrera. Klicka på en rad för att öppna detaljer i ett eget fönster.</p>
+
+      <div class="chipsRow" aria-label="Filter">
+        <div class="chip">
+          <label for="typeSel">Typ</label>
+          <select id="typeSel" aria-label="Typ">
+            <option value="all">Alla</option>
+            <option value="meal">Måltidsrecept</option>
+            <option value="sub">Underrecept</option>
+          </select>
+        </div>
+
+        <div class="chip">
+          <label for="statusSel">Status</label>
+          <select id="statusSel" aria-label="Status">
+            <option value="active">Aktiva</option>
+            <option value="all">Alla</option>
+            <option value="inactive">Inaktiva</option>
+          </select>
+        </div>
+
+        <div class="chip">
+          <label for="catSel">Kategori</label>
+          <select id="catSel" aria-label="Kategori">
+            <option value="all">Alla</option>
+            <option value="husman">Husman</option>
+            <option value="soppa">Soppa</option>
+            <option value="veg">Vegetariskt</option>
+          </select>
+        </div>
+
+        <div class="chip">
+          <label for="compactChk">Kompakt</label>
+          <input id="compactChk" type="checkbox" aria-label="Kompakt vy" />
+        </div>
+      </div>
+    </section>
+
+    <div class="sectionTitle">
+      <h2>Resultat</h2>
+      <div class="meta" id="meta">0 träffar</div>
+    </div>
+
+    <!-- TABELL (endast "måste-kolumner") -->
+    <section class="card tableCard">
+      <table class="table" id="tbl" aria-label="Receptlista">
+        <thead>
+          <tr>
+            <th style="width:46%;">Namn</th>
+            <th style="width:20%;">Måltidsnamn</th>
+            <th style="width:10%;">Typ</th>
+            <th style="width:10%;">Pris</th>
+            <th style="width:10%;">Status</th>
+            <th class="actions" style="width:4%;">Åtgärd</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- SELECTION PANEL (Bild 5-stil, visas vid markeringar) -->
+  <aside class="selectionPanel" id="selPanel" aria-label="Valda recept">
+    <div class="selectionHeader">
+      <div class="title">Valda recept (<span id="selCount">0</span>)</div>
+      <button class="iconBtn" id="selClose" title="Stäng" aria-label="Stäng">✕</button>
+    </div>
+    <div class="selectionBody" id="selBody"></div>
+    <div style="padding:12px 14px; border-top:1px solid var(--border); display:flex; gap:10px;">
+      <button class="btn w100" id="bulkInactive">Markera inaktiv</button>
+      <button class="btn btnPrimary w100" id="bulkOpen">Öppna detaljer</button>
+    </div>
+  </aside>
+
+  <!-- OVERLAY + DRAWER -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  <aside class="drawer" id="drawer" aria-label="Detaljer">
+    <div class="drawerHeader">
+      <div>
+        <div class="drawerTitle" id="dTitle">Detaljer</div>
+        <div class="muted small" id="dSub"></div>
+      </div>
+      <button class="iconBtn" id="dClose" title="Stäng" aria-label="Stäng">✕</button>
+    </div>
+
+    <div class="drawerBody">
+      <div class="tabs" role="tablist" aria-label="Detaljflikar">
+        <button class="tab active" data-tab="overview" type="button">Översikt</button>
+        <button class="tab" data-tab="climate" type="button">Klimat & näring</button>
+        <button class="tab" data-tab="ingredients" type="button">Ingredienser</button>
+        <button class="tab" data-tab="history" type="button">Historik</button>
+      </div>
+
+      <div id="tab_overview">
+        <div class="field">
+          <label>Namn</label>
+          <input class="input" id="fName" type="text" />
+          <div class="errorText" id="eName" style="display:none;"></div>
+        </div>
+
+        <div class="field">
+          <label>Måltidsnamn</label>
+          <input class="input" id="fMealName" type="text" />
+        </div>
+
+        <div class="field">
+          <label>Status</label>
+          <select id="fStatus">
+            <option value="active">Aktiv</option>
+            <option value="inactive">Inaktiv</option>
+          </select>
+        </div>
+
+        <div class="flexBetween mt16">
+          <button class="btn" id="dupBtn">Duplicera</button>
+          <button class="btn btnPrimary" id="saveBtn">Spara</button>
+        </div>
+        <p class="muted small mt12" id="saveNote"></p>
+      </div>
+
+      <div id="tab_climate" style="display:none;">
+        <div class="card" style="padding:14px; box-shadow:none;">
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Koldioxidekvivalenter</div>
+              <div class="muted small">Visa i panel, inte i listan.</div>
+            </div>
+            <span class="badge badgeMuted" id="co2Badge">—</span>
+          </div>
+          <hr class="hr" />
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Energidistribution</div>
+              <div class="muted small">Fett / Kolhydrater / Protein</div>
+            </div>
+            <span class="badge badgeMuted" id="energyBadge">—</span>
+          </div>
+          <hr class="hr" />
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Måltidsstorlek</div>
+              <div class="muted small">Portionsvikt</div>
+            </div>
+            <span class="badge badgeMuted" id="sizeBadge">—</span>
+          </div>
+          <hr class="hr" />
+          <div class="field">
+            <label>Beskrivning</label>
+            <textarea class="input" id="fDesc" rows="5" style="resize:vertical;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab_ingredients" style="display:none;">
+        <p class="muted small">Här kopplar vi senare till sida 3/4. Nu: placeholderlista.</p>
+        <div id="ingList" class="card" style="padding:14px; box-shadow:none;"></div>
+      </div>
+
+      <div id="tab_history" style="display:none;">
+        <p class="muted small">Här kan ni visa “datum när produkten/leverantören ändrade” + vad som ändrades.</p>
+        <div id="histList" class="card" style="padding:14px; box-shadow:none;"></div>
+      </div>
+
+    </div>
+  </aside>
+
+  <script type="module">
+    // Minimal page-script: ingen extern JS ännu (kommer i app.js senare)
+    const $ = (sel) => document.querySelector(sel);
+
+    const elBack = $('#backBtn');
+    const elQ = $('#q');
+    const elTbody = $('#tbody');
+    const elMeta = $('#meta');
+
+    const elOverlay = $('#overlay');
+    const elDrawer = $('#drawer');
+    const elDTitle = $('#dTitle');
+    const elDSub = $('#dSub');
+    const elDClose = $('#dClose');
+
+    const elSelPanel = $('#selPanel');
+    const elSelCount = $('#selCount');
+    const elSelBody = $('#selBody');
+    const elSelClose = $('#selClose');
+
+    const elType = $('#typeSel');
+    const elStatus = $('#statusSel');
+    const elCat = $('#catSel');
+    const elCompact = $('#compactChk');
+
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const tabViews = {
+      overview: $('#tab_overview'),
+      climate: $('#tab_climate'),
+      ingredients: $('#tab_ingredients'),
+      history: $('#tab_history')
+    };
+
+    // Mockdata (ersätts senare med riktig datakälla)
+    const DB = [
+      { id:'r1', name:'Fiskpanetter med kokt potatis och remouladsås', mealName:'Fiskpanetter med kokt potatis och remouladsås', type:'meal', price:null, status:'active', cat:'husman', co2:'—', energy:'—', size:'—', desc:'' },
+      { id:'r2', name:'Blomkålssoppa med örtolja, biffstroganoff med ris och saltgurka', mealName:'Blomkålssoppa med örtolja, biffstroganoff med ris och saltgurka', type:'meal', price:null, status:'active', cat:'soppa', co2:'—', energy:'—', size:'550 g', desc:'' },
+      { id:'r3', name:'Dillkött med kokt potatis', mealName:'Dillkött med kokt potatis', type:'meal', price:'23,39 kr', status:'active', cat:'husman', co2:'—', energy:'—', size:'410 g', desc:'' },
+      { id:'r4', name:'Fläskfilégryta med Sambal Olek, ädelost, grönsaker och ris', mealName:'Fläskfilégryta med Sambal Olek, ädelost, grönsaker och ris', type:'meal', price:'9,13 kr', status:'active', cat:'husman', co2:'—', energy:'—', size:'400 g', desc:'' },
+      { id:'r5', name:'Kalvstek med gräddsås serveras med rostad potatis, kokta grönsaker och broccolisoppa', mealName:'Kalvstek med gräddsås serveras med rostad potatis, kokta grönsaker och broccolisoppa', type:'meal', price:null, status:'active', cat:'husman', co2:'—', energy:'—', size:'440 g', desc:'' },
+      { id:'r6', name:'Lättrimmad koljafilé med vitvinssås med ägg och kokt potatis', mealName:'Lättrimmad koljafilé med vitvinssås med ägg och kokt potatis', type:'meal', price:null, status:'inactive', cat:'husman', co2:'—', energy:'—', size:'420 g', desc:'' },
+      { id:'r7', name:'Mustig skaldjurssoppa smaksatt med cognac', mealName:'Mustig skaldjurssoppa smaksatt med cognac', type:'sub', price:null, status:'active', cat:'soppa', co2:'—', energy:'—', size:'—', desc:'' },
+    ];
+
+    const state = {
+      q: '',
+      type: 'all',
+      status: 'active',
+      cat: 'all',
+      compact: false,
+      selected: new Map(), // id -> recipe
+      active: null
+    };
+
+    function text(v){ return (v ?? '').toString(); }
+
+    function matches(r){
+      if (state.type !== 'all' && r.type !== state.type) return false;
+      if (state.status !== 'all' && r.status !== state.status) return false;
+      if (state.cat !== 'all' && r.cat !== state.cat) return false;
+
+      const q = state.q.trim().toLowerCase();
+      if (!q) return true;
+      const hay = `${r.name} ${r.mealName} ${r.type} ${r.price ?? ''}`.toLowerCase();
+      return hay.includes(q);
+    }
+
+    function render(){
+      const rows = DB.filter(matches);
+      elMeta.textContent = `${rows.length} träffar`;
+
+      elTbody.textContent = '';
+      for (const r of rows){
+        const tr = document.createElement('tr');
+
+        // Namn (klickbar)
+        const tdName = document.createElement('td');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.style.marginRight = '10px';
+        cb.checked = state.selected.has(r.id);
+        cb.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (cb.checked) state.selected.set(r.id, r);
+          else state.selected.delete(r.id);
+          renderSelectionPanel();
+        });
+
+        const a = document.createElement('a');
+        a.href = '#';
+        a.textContent = r.name;
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          openDrawer(r);
+        });
+
+        tdName.appendChild(cb);
+        tdName.appendChild(a);
+
+        const tdMeal = document.createElement('td');
+        tdMeal.textContent = r.mealName;
+
+        const tdType = document.createElement('td');
+        tdType.textContent = r.type === 'meal' ? 'Måltid' : 'Under';
+
+        const tdPrice = document.createElement('td');
+        tdPrice.textContent = r.price ?? '—';
+
+        const tdStatus = document.createElement('td');
+        const b = document.createElement('span');
+        b.className = 'badge ' + (r.status === 'active' ? 'badgeOk' : 'badgeMuted');
+        b.textContent = r.status === 'active' ? 'Aktiv' : 'Inaktiv';
+        tdStatus.appendChild(b);
+
+        const tdAct = document.createElement('td');
+        tdAct.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'iconBtn';
+        btn.title = 'Detaljer';
+        btn.textContent = '⋯';
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDrawer(r);
+        });
+        tdAct.appendChild(btn);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdMeal);
+        tr.appendChild(tdType);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdAct);
+
+        if (state.compact){
+          tr.querySelectorAll('td').forEach(td => td.style.padding = '9px 12px');
+        }
+
+        tr.addEventListener('click', () => openDrawer(r));
+        elTbody.appendChild(tr);
+      }
+    }
+
+    function renderSelectionPanel(){
+      const n = state.selected.size;
+      elSelCount.textContent = String(n);
+
+      if (n === 0){
+        elSelPanel.classList.remove('open');
+        elSelBody.textContent = '';
+        return;
+      }
+      elSelPanel.classList.add('open');
+
+      elSelBody.textContent = '';
+      for (const r of state.selected.values()){
+        const row = document.createElement('div');
+        row.className = 'selectionItem';
+
+        const left = document.createElement('div');
+        const nm = document.createElement('div');
+        nm.className = 'name';
+        nm.textContent = r.name;
+        const sub = document.createElement('div');
+        sub.className = 'sub';
+        sub.textContent = (r.status === 'active' ? 'Aktiv' : 'Inaktiv') + ' • ' + (r.type === 'meal' ? 'Måltid' : 'Under');
+        left.appendChild(nm);
+        left.appendChild(sub);
+
+        const del = document.createElement('button');
+        del.className = 'iconBtn';
+        del.title = 'Ta bort';
+        del.textContent = '🗑';
+        del.addEventListener('click', () => {
+          state.selected.delete(r.id);
+          renderSelectionPanel();
+          render();
+        });
+
+        row.appendChild(left);
+        row.appendChild(del);
+        elSelBody.appendChild(row);
+      }
+    }
+
+    function openDrawer(r){
+      state.active = r;
+
+      elDTitle.textContent = r.name;
+      elDSub.textContent = `${r.type === 'meal' ? 'Måltidsrecept' : 'Underrecept'} • ${r.status === 'active' ? 'Aktiv' : 'Inaktiv'}`;
+
+      // Fill fields
+      $('#fName').value = text(r.name);
+      $('#fMealName').value = text(r.mealName);
+      $('#fStatus').value = r.status;
+      $('#fDesc').value = text(r.desc);
+
+      $('#co2Badge').textContent = text(r.co2);
+      $('#energyBadge').textContent = text(r.energy);
+      $('#sizeBadge').textContent = text(r.size);
+
+      // placeholders
+      $('#ingList').textContent = '—';
+      $('#histList').textContent = '—';
+
+      elOverlay.classList.add('open');
+      elDrawer.classList.add('open');
+      elOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDrawer(){
+      elOverlay.classList.remove('open');
+      elDrawer.classList.remove('open');
+      elOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setTab(key){
+      for (const [k, el] of Object.entries(tabViews)){
+        el.style.display = (k === key) ? '' : 'none';
+      }
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    }
+
+    // Events
+    elBack.addEventListener('click', () => history.back());
+
+    // "/" focus sök
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement !== elQ){
+        e.preventDefault();
+        elQ.focus();
+      }
+      if (e.key === 'Escape'){
+        closeDrawer();
+        elSelPanel.classList.remove('open');
+      }
+    });
+
+    elQ.addEventListener('input', () => {
+      state.q = elQ.value;
+      render();
+    });
+
+    elType.addEventListener('change', () => { state.type = elType.value; render(); });
+    elStatus.addEventListener('change', () => { state.status = elStatus.value; render(); });
+    elCat.addEventListener('change', () => { state.cat = elCat.value; render(); });
+    elCompact.addEventListener('change', () => { state.compact = !!elCompact.checked; render(); });
+
+    elOverlay.addEventListener('click', closeDrawer);
+    elDClose.addEventListener('click', closeDrawer);
+
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    elSelClose.addEventListener('click', () => {
+      state.selected.clear();
+      renderSelectionPanel();
+      render();
+    });
+
+    $('#bulkOpen').addEventListener('click', () => {
+      const first = state.selected.values().next().value;
+      if (first) openDrawer(first);
+    });
+
+    $('#bulkInactive').addEventListener('click', () => {
+      // demo: sätt valda till inaktiv (lokalt i mock)
+      for (const r of state.selected.values()){
+        r.status = 'inactive';
+      }
+      state.selected.clear();
+      renderSelectionPanel();
+      render();
+    });
+
+    $('#createBtn').addEventListener('click', () => {
+      alert('Skapa ny (MVP): koppla senare till create-flow.');
+    });
+
+    $('#saveBtn').addEventListener('click', () => {
+      const r = state.active;
+      if (!r) return;
+
+      const name = $('#fName').value.trim();
+      if (!name){
+        const e = $('#eName');
+        e.style.display = '';
+        e.textContent = 'Namn krävs.';
+        return;
+      }
+      $('#eName').style.display = 'none';
+
+      r.name = name;
+      r.mealName = $('#fMealName').value.trim();
+      r.status = $('#fStatus').value;
+      r.desc = $('#fDesc').value;
+
+      $('#saveNote').textContent = 'Sparat (lokal demo).';
+      render();
+    });
+
+    $('#dupBtn').addEventListener('click', () => {
+      const r = state.active;
+      if (!r) return;
+      const copy = { ...r, id: 'r' + Math.random().toString(16).slice(2), name: r.name + ' (kopia)' };
+      DB.unshift(copy);
+      $('#saveNote').textContent = 'Duplicerat (lokal demo).';
+      render();
+    });
+
+    // Boot
+    setTab('overview');
+    render();
+    renderSelectionPanel();
+  </script>
+
+</body>
+</html>
