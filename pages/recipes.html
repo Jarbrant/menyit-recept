@@ -1,7 +1,8 @@
 <!-- ============================================================
      FIL: pages/recipes.html  (HEL FIL)
-     Sida 1: Receptlista (modern) — central sök + ren tabell + högerpanel (drawer)
-     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent), fail-soft UI
+     Sida 1: Receptlista (modern)
+     Patch: flytta sökfält + hjälp-popover + kör 10 fejk-recept via app.js
+     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent)
 ============================================================ -->
 <!doctype html>
 <html lang="sv">
@@ -24,20 +25,50 @@
         </div>
       </div>
 
-      <div class="centerSlot">
-        <div class="searchWrap" style="max-width:780px; width:100%;">
-          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
-          </svg>
-          <input id="q" class="searchInput" type="search" placeholder="Sök recept, ingrediens, artikelnummer…" autocomplete="off" />
-          <span class="kbd" title="Snabbtangent">/</span>
-        </div>
-      </div>
+      <!-- (Flyttat) Sökfältet ligger i hero nu -->
+      <div class="centerSlot"></div>
 
-      <div class="rightSlot">
+      <div class="rightSlot" style="position:relative;">
+        <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false">Hjälp</button>
+
         <a class="btn" href="./recipe-disabled-ingredients.html" title="Funktionshindrade ingredienser">Fel-ingr</a>
         <a class="btn" href="./recipe-used-ingredients.html" title="Använda ingredienser">Anv-ingr</a>
         <button class="btn btnPrimary" id="createBtn">+ Skapa ny</button>
+
+        <!-- Hjälpruta (popover) -->
+        <div id="helpPop"
+             class="card"
+             role="dialog"
+             aria-label="Hjälp"
+             style="
+               display:none;
+               position:absolute;
+               right:0;
+               top:48px;
+               width:min(380px, 92vw);
+               padding:14px;
+               box-shadow: var(--shadow2);
+               z-index: 60;">
+          <div class="flexBetween">
+            <div style="font-weight:900;">Snabbhjälp</div>
+            <button class="iconBtn" id="helpClose" type="button" aria-label="Stäng hjälp">✕</button>
+          </div>
+
+          <div class="muted small mt12">
+            <div><span class="kbd">/</span> fokuserar sök</div>
+            <div><span class="kbd">Esc</span> stänger paneler</div>
+          </div>
+
+          <hr class="hr" />
+
+          <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
+          <ul class="muted small" style="margin:0 0 0 18px;">
+            <li>Sök i listan med textfältet.</li>
+            <li>Filtrera på Typ/Status/Kategori.</li>
+            <li>Klicka på en rad för detaljer i högerpanelen.</li>
+            <li>Måltidsrecept visar vilka underrecept som ingår.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </header>
@@ -48,6 +79,15 @@
     <section class="hero">
       <h1 class="heroTitle">Sök recept</h1>
       <p class="heroSub">Skriv för att filtrera. Klicka på en rad för att öppna detaljer i ett eget fönster.</p>
+
+      <!-- Sökfältet flyttat hit (som du markerade) -->
+      <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
+        <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+        </svg>
+        <input id="q" class="searchInput" type="search" placeholder="Sök recept, ingrediens, artikelnummer…" autocomplete="off" />
+        <span class="kbd" title="Snabbtangent">/</span>
+      </div>
 
       <div class="chipsRow" aria-label="Filter">
         <div class="chip">
@@ -74,7 +114,9 @@
             <option value="all">Alla</option>
             <option value="husman">Husman</option>
             <option value="soppa">Soppa</option>
-            <option value="veg">Vegetariskt</option>
+            <option value="tillbehor">Tillbehör</option>
+            <option value="sas">Sås</option>
+            <option value="bas">Bas</option>
           </select>
         </div>
 
@@ -202,330 +244,57 @@
       </div>
 
       <div id="tab_ingredients" style="display:none;">
-        <p class="muted small">Här kopplar vi senare till sida 3/4. Nu: placeholderlista.</p>
+        <p class="muted small">Måltidsrecept visar underrecept + ingredienser.</p>
         <div id="ingList" class="card" style="padding:14px; box-shadow:none;"></div>
       </div>
 
       <div id="tab_history" style="display:none;">
-        <p class="muted small">Här kan ni visa “datum när produkten/leverantören ändrade” + vad som ändrades.</p>
+        <p class="muted small">Visar datum + vad som ändrades (demo).</p>
         <div id="histList" class="card" style="padding:14px; box-shadow:none;"></div>
       </div>
-
     </div>
   </aside>
 
+  <!-- Page init: använder 10 fejk-recept -->
   <script type="module">
-    // Minimal page-script: ingen extern JS ännu (kommer i app.js senare)
-    const $ = (sel) => document.querySelector(sel);
+    import { initRecipesPage } from '../assets/js/pages/recipes.page.js';
+    initRecipesPage();
 
-    const elBack = $('#backBtn');
-    const elQ = $('#q');
-    const elTbody = $('#tbody');
-    const elMeta = $('#meta');
+    // Hjälpruta (popover) – liten, enkel
+    const $ = (s) => document.querySelector(s);
+    const btn = $('#helpBtn');
+    const pop = $('#helpPop');
+    const close = $('#helpClose');
 
-    const elOverlay = $('#overlay');
-    const elDrawer = $('#drawer');
-    const elDTitle = $('#dTitle');
-    const elDSub = $('#dSub');
-    const elDClose = $('#dClose');
-
-    const elSelPanel = $('#selPanel');
-    const elSelCount = $('#selCount');
-    const elSelBody = $('#selBody');
-    const elSelClose = $('#selClose');
-
-    const elType = $('#typeSel');
-    const elStatus = $('#statusSel');
-    const elCat = $('#catSel');
-    const elCompact = $('#compactChk');
-
-    const tabs = Array.from(document.querySelectorAll('.tab'));
-    const tabViews = {
-      overview: $('#tab_overview'),
-      climate: $('#tab_climate'),
-      ingredients: $('#tab_ingredients'),
-      history: $('#tab_history')
-    };
-
-    // Mockdata (ersätts senare med riktig datakälla)
-    const DB = [
-      { id:'r1', name:'Fiskpanetter med kokt potatis och remouladsås', mealName:'Fiskpanetter med kokt potatis och remouladsås', type:'meal', price:null, status:'active', cat:'husman', co2:'—', energy:'—', size:'—', desc:'' },
-      { id:'r2', name:'Blomkålssoppa med örtolja, biffstroganoff med ris och saltgurka', mealName:'Blomkålssoppa med örtolja, biffstroganoff med ris och saltgurka', type:'meal', price:null, status:'active', cat:'soppa', co2:'—', energy:'—', size:'550 g', desc:'' },
-      { id:'r3', name:'Dillkött med kokt potatis', mealName:'Dillkött med kokt potatis', type:'meal', price:'23,39 kr', status:'active', cat:'husman', co2:'—', energy:'—', size:'410 g', desc:'' },
-      { id:'r4', name:'Fläskfilégryta med Sambal Olek, ädelost, grönsaker och ris', mealName:'Fläskfilégryta med Sambal Olek, ädelost, grönsaker och ris', type:'meal', price:'9,13 kr', status:'active', cat:'husman', co2:'—', energy:'—', size:'400 g', desc:'' },
-      { id:'r5', name:'Kalvstek med gräddsås serveras med rostad potatis, kokta grönsaker och broccolisoppa', mealName:'Kalvstek med gräddsås serveras med rostad potatis, kokta grönsaker och broccolisoppa', type:'meal', price:null, status:'active', cat:'husman', co2:'—', energy:'—', size:'440 g', desc:'' },
-      { id:'r6', name:'Lättrimmad koljafilé med vitvinssås med ägg och kokt potatis', mealName:'Lättrimmad koljafilé med vitvinssås med ägg och kokt potatis', type:'meal', price:null, status:'inactive', cat:'husman', co2:'—', energy:'—', size:'420 g', desc:'' },
-      { id:'r7', name:'Mustig skaldjurssoppa smaksatt med cognac', mealName:'Mustig skaldjurssoppa smaksatt med cognac', type:'sub', price:null, status:'active', cat:'soppa', co2:'—', energy:'—', size:'—', desc:'' },
-    ];
-
-    const state = {
-      q: '',
-      type: 'all',
-      status: 'active',
-      cat: 'all',
-      compact: false,
-      selected: new Map(), // id -> recipe
-      active: null
-    };
-
-    function text(v){ return (v ?? '').toString(); }
-
-    function matches(r){
-      if (state.type !== 'all' && r.type !== state.type) return false;
-      if (state.status !== 'all' && r.status !== state.status) return false;
-      if (state.cat !== 'all' && r.cat !== state.cat) return false;
-
-      const q = state.q.trim().toLowerCase();
-      if (!q) return true;
-      const hay = `${r.name} ${r.mealName} ${r.type} ${r.price ?? ''}`.toLowerCase();
-      return hay.includes(q);
+    function openHelp(){
+      pop.style.display = '';
+      btn.setAttribute('aria-expanded', 'true');
+      // Klick utanför stänger
+      setTimeout(() => {
+        const onDoc = (e) => {
+          if (!pop.contains(e.target) && e.target !== btn){
+            document.removeEventListener('mousedown', onDoc);
+            closeHelp();
+          }
+        };
+        document.addEventListener('mousedown', onDoc);
+      }, 0);
+    }
+    function closeHelp(){
+      pop.style.display = 'none';
+      btn.setAttribute('aria-expanded', 'false');
     }
 
-    function render(){
-      const rows = DB.filter(matches);
-      elMeta.textContent = `${rows.length} träffar`;
+    btn.addEventListener('click', () => {
+      const isOpen = pop.style.display !== 'none' && pop.style.display !== '';
+      if (isOpen) closeHelp();
+      else openHelp();
+    });
+    close.addEventListener('click', closeHelp);
 
-      elTbody.textContent = '';
-      for (const r of rows){
-        const tr = document.createElement('tr');
-
-        // Namn (klickbar)
-        const tdName = document.createElement('td');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.style.marginRight = '10px';
-        cb.checked = state.selected.has(r.id);
-        cb.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (cb.checked) state.selected.set(r.id, r);
-          else state.selected.delete(r.id);
-          renderSelectionPanel();
-        });
-
-        const a = document.createElement('a');
-        a.href = '#';
-        a.textContent = r.name;
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          openDrawer(r);
-        });
-
-        tdName.appendChild(cb);
-        tdName.appendChild(a);
-
-        const tdMeal = document.createElement('td');
-        tdMeal.textContent = r.mealName;
-
-        const tdType = document.createElement('td');
-        tdType.textContent = r.type === 'meal' ? 'Måltid' : 'Under';
-
-        const tdPrice = document.createElement('td');
-        tdPrice.textContent = r.price ?? '—';
-
-        const tdStatus = document.createElement('td');
-        const b = document.createElement('span');
-        b.className = 'badge ' + (r.status === 'active' ? 'badgeOk' : 'badgeMuted');
-        b.textContent = r.status === 'active' ? 'Aktiv' : 'Inaktiv';
-        tdStatus.appendChild(b);
-
-        const tdAct = document.createElement('td');
-        tdAct.className = 'actions';
-        const btn = document.createElement('button');
-        btn.className = 'iconBtn';
-        btn.title = 'Detaljer';
-        btn.textContent = '⋯';
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openDrawer(r);
-        });
-        tdAct.appendChild(btn);
-
-        tr.appendChild(tdName);
-        tr.appendChild(tdMeal);
-        tr.appendChild(tdType);
-        tr.appendChild(tdPrice);
-        tr.appendChild(tdStatus);
-        tr.appendChild(tdAct);
-
-        if (state.compact){
-          tr.querySelectorAll('td').forEach(td => td.style.padding = '9px 12px');
-        }
-
-        tr.addEventListener('click', () => openDrawer(r));
-        elTbody.appendChild(tr);
-      }
-    }
-
-    function renderSelectionPanel(){
-      const n = state.selected.size;
-      elSelCount.textContent = String(n);
-
-      if (n === 0){
-        elSelPanel.classList.remove('open');
-        elSelBody.textContent = '';
-        return;
-      }
-      elSelPanel.classList.add('open');
-
-      elSelBody.textContent = '';
-      for (const r of state.selected.values()){
-        const row = document.createElement('div');
-        row.className = 'selectionItem';
-
-        const left = document.createElement('div');
-        const nm = document.createElement('div');
-        nm.className = 'name';
-        nm.textContent = r.name;
-        const sub = document.createElement('div');
-        sub.className = 'sub';
-        sub.textContent = (r.status === 'active' ? 'Aktiv' : 'Inaktiv') + ' • ' + (r.type === 'meal' ? 'Måltid' : 'Under');
-        left.appendChild(nm);
-        left.appendChild(sub);
-
-        const del = document.createElement('button');
-        del.className = 'iconBtn';
-        del.title = 'Ta bort';
-        del.textContent = '🗑';
-        del.addEventListener('click', () => {
-          state.selected.delete(r.id);
-          renderSelectionPanel();
-          render();
-        });
-
-        row.appendChild(left);
-        row.appendChild(del);
-        elSelBody.appendChild(row);
-      }
-    }
-
-    function openDrawer(r){
-      state.active = r;
-
-      elDTitle.textContent = r.name;
-      elDSub.textContent = `${r.type === 'meal' ? 'Måltidsrecept' : 'Underrecept'} • ${r.status === 'active' ? 'Aktiv' : 'Inaktiv'}`;
-
-      // Fill fields
-      $('#fName').value = text(r.name);
-      $('#fMealName').value = text(r.mealName);
-      $('#fStatus').value = r.status;
-      $('#fDesc').value = text(r.desc);
-
-      $('#co2Badge').textContent = text(r.co2);
-      $('#energyBadge').textContent = text(r.energy);
-      $('#sizeBadge').textContent = text(r.size);
-
-      // placeholders
-      $('#ingList').textContent = '—';
-      $('#histList').textContent = '—';
-
-      elOverlay.classList.add('open');
-      elDrawer.classList.add('open');
-      elOverlay.setAttribute('aria-hidden', 'false');
-    }
-
-    function closeDrawer(){
-      elOverlay.classList.remove('open');
-      elDrawer.classList.remove('open');
-      elOverlay.setAttribute('aria-hidden', 'true');
-    }
-
-    function setTab(key){
-      for (const [k, el] of Object.entries(tabViews)){
-        el.style.display = (k === key) ? '' : 'none';
-      }
-      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
-    }
-
-    // Events
-    elBack.addEventListener('click', () => history.back());
-
-    // "/" focus sök
     window.addEventListener('keydown', (e) => {
-      if (e.key === '/' && document.activeElement !== elQ){
-        e.preventDefault();
-        elQ.focus();
-      }
-      if (e.key === 'Escape'){
-        closeDrawer();
-        elSelPanel.classList.remove('open');
-      }
+      if (e.key === 'Escape') closeHelp();
     });
-
-    elQ.addEventListener('input', () => {
-      state.q = elQ.value;
-      render();
-    });
-
-    elType.addEventListener('change', () => { state.type = elType.value; render(); });
-    elStatus.addEventListener('change', () => { state.status = elStatus.value; render(); });
-    elCat.addEventListener('change', () => { state.cat = elCat.value; render(); });
-    elCompact.addEventListener('change', () => { state.compact = !!elCompact.checked; render(); });
-
-    elOverlay.addEventListener('click', closeDrawer);
-    elDClose.addEventListener('click', closeDrawer);
-
-    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
-
-    elSelClose.addEventListener('click', () => {
-      state.selected.clear();
-      renderSelectionPanel();
-      render();
-    });
-
-    $('#bulkOpen').addEventListener('click', () => {
-      const first = state.selected.values().next().value;
-      if (first) openDrawer(first);
-    });
-
-    $('#bulkInactive').addEventListener('click', () => {
-      // demo: sätt valda till inaktiv (lokalt i mock)
-      for (const r of state.selected.values()){
-        r.status = 'inactive';
-      }
-      state.selected.clear();
-      renderSelectionPanel();
-      render();
-    });
-
-    $('#createBtn').addEventListener('click', () => {
-      alert('Skapa ny (MVP): koppla senare till create-flow.');
-    });
-
-    $('#saveBtn').addEventListener('click', () => {
-      const r = state.active;
-      if (!r) return;
-
-      const name = $('#fName').value.trim();
-      if (!name){
-        const e = $('#eName');
-        e.style.display = '';
-        e.textContent = 'Namn krävs.';
-        return;
-      }
-      $('#eName').style.display = 'none';
-
-      r.name = name;
-      r.mealName = $('#fMealName').value.trim();
-      r.status = $('#fStatus').value;
-      r.desc = $('#fDesc').value;
-
-      $('#saveNote').textContent = 'Sparat (lokal demo).';
-      render();
-    });
-
-    $('#dupBtn').addEventListener('click', () => {
-      const r = state.active;
-      if (!r) return;
-      const copy = { ...r, id: 'r' + Math.random().toString(16).slice(2), name: r.name + ' (kopia)' };
-      DB.unshift(copy);
-      $('#saveNote').textContent = 'Duplicerat (lokal demo).';
-      render();
-    });
-
-    // Boot
-    setTab('overview');
-    render();
-    renderSelectionPanel();
   </script>
 
 </body>
