@@ -1,1 +1,503 @@
+<!-- ============================================================
+     FIL: pages/recipe-disabled-ingredients.html  (HEL FIL)
+     Sida 2: Funktionshindrade ingredienser i recept
+     UI: central sök + ren tabell + högerpanel (drawer) för receptlista + byt ut
+     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kostdata — Funktionshindrade ingredienser</title>
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
 
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <button class="backBtn" id="backBtn" title="Tillbaka" aria-label="Tillbaka">←</button>
+        <div>
+          <div class="pageTitle">Funktionshindrade ingredienser</div>
+          <div class="muted small">Hitta ingredienser som behöver bytas</div>
+        </div>
+      </div>
+
+      <div class="centerSlot">
+        <div class="searchWrap" style="max-width:780px; width:100%;">
+          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+          </svg>
+          <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens eller recept…" autocomplete="off" />
+          <span class="kbd" title="Snabbtangent">/</span>
+        </div>
+      </div>
+
+      <div class="rightSlot">
+        <a class="btn" href="./recipes.html" title="Recept">Recept</a>
+        <a class="btn" href="./recipe-used-ingredients.html" title="Använda ingredienser">Anv-ingr</a>
+        <button class="btn btnPrimary" id="exportBtn">Exportera</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- HERO -->
+    <section class="hero">
+      <h1 class="heroTitle">Åtgärda ingredienser</h1>
+      <p class="heroSub">Klicka på en rad för att se alla recept som använder ingrediensen och byt ut.</p>
+
+      <div class="chipsRow" aria-label="Filter">
+        <div class="chip">
+          <label for="sevSel">Prioritet</label>
+          <select id="sevSel" aria-label="Prioritet">
+            <option value="all">Alla</option>
+            <option value="p0">P0 (blocker)</option>
+            <option value="p1">P1</option>
+            <option value="p2">P2</option>
+          </select>
+        </div>
+
+        <div class="chip">
+          <label for="onlyActive">Visa aktiva recept</label>
+          <input id="onlyActive" type="checkbox" checked />
+        </div>
+
+        <div class="chip">
+          <label for="compactChk">Kompakt</label>
+          <input id="compactChk" type="checkbox" />
+        </div>
+      </div>
+    </section>
+
+    <div class="sectionTitle">
+      <h2>Ingredienser</h2>
+      <div class="meta" id="meta">0 träffar</div>
+    </div>
+
+    <section class="card tableCard">
+      <table class="table" id="tbl" aria-label="Funktionshindrade ingredienser">
+        <thead>
+          <tr>
+            <th style="width:48%;">Ingrediens</th>
+            <th style="width:14%;">Prioritet</th>
+            <th style="width:14%;">Antal recept</th>
+            <th style="width:14%;">Pris</th>
+            <th class="actions" style="width:10%;">Åtgärd</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- OVERLAY + DRAWER -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  <aside class="drawer" id="drawer" aria-label="Detaljer">
+    <div class="drawerHeader">
+      <div>
+        <div class="drawerTitle" id="dTitle">Detaljer</div>
+        <div class="muted small" id="dSub"></div>
+      </div>
+      <button class="iconBtn" id="dClose" title="Stäng" aria-label="Stäng">✕</button>
+    </div>
+
+    <div class="drawerBody">
+      <div class="tabs" role="tablist" aria-label="Detaljflikar">
+        <button class="tab active" data-tab="overview" type="button">Översikt</button>
+        <button class="tab" data-tab="recipes" type="button">Recept</button>
+        <button class="tab" data-tab="replace" type="button">Byt ut</button>
+      </div>
+
+      <div id="tab_overview">
+        <div class="card" style="padding:14px; box-shadow:none;">
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Ingrediens</div>
+              <div class="muted small" id="ovName">—</div>
+            </div>
+            <span class="badge badgeMuted" id="ovSev">—</span>
+          </div>
+
+          <hr class="hr" />
+
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Antal recept</div>
+              <div class="muted small">Som använder ingrediensen</div>
+            </div>
+            <span class="badge badgeMuted" id="ovCount">—</span>
+          </div>
+
+          <hr class="hr" />
+
+          <div class="flexBetween">
+            <div>
+              <div style="font-weight:900;">Pris</div>
+              <div class="muted small">Senaste kända</div>
+            </div>
+            <span class="badge badgeMuted" id="ovPrice">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab_recipes" style="display:none;">
+        <div class="sectionTitle" style="margin-top:0;">
+          <h2>Recept som påverkas</h2>
+          <div class="meta" id="rMeta">—</div>
+        </div>
+
+        <div class="card tableCard" style="box-shadow:none;">
+          <table class="table" aria-label="Receptlista">
+            <thead>
+              <tr>
+                <th>Recept</th>
+                <th style="width:120px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="rBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab_replace" style="display:none;">
+        <p class="muted small">MVP: välj ersättnings-ingrediens och tryck “Byt ut”. (Här kopplas senare mot riktig backend.)</p>
+
+        <div class="field">
+          <label for="repQ">Sök ersättningsingrediens</label>
+          <input class="input" id="repQ" type="search" placeholder="Sök vara/ingrediens…" autocomplete="off" />
+        </div>
+
+        <div class="card tableCard" style="box-shadow:none;">
+          <table class="table" aria-label="Ersättningsförslag">
+            <thead>
+              <tr>
+                <th>Ersätt med</th>
+                <th style="width:120px;">Pris</th>
+                <th class="actions" style="width:110px;">Åtgärd</th>
+              </tr>
+            </thead>
+            <tbody id="repBody"></tbody>
+          </table>
+        </div>
+
+        <div class="flexBetween mt16">
+          <button class="btn" id="repCancel">Avbryt</button>
+          <button class="btn btnPrimary" id="repDo" disabled>Byt ut</button>
+        </div>
+
+        <p class="muted small mt12" id="repNote"></p>
+      </div>
+
+    </div>
+  </aside>
+
+  <script type="module">
+    const $ = (sel) => document.querySelector(sel);
+
+    const elBack = $('#backBtn');
+    const elQ = $('#q');
+    const elTbody = $('#tbody');
+    const elMeta = $('#meta');
+
+    const elOverlay = $('#overlay');
+    const elDrawer = $('#drawer');
+    const elDTitle = $('#dTitle');
+    const elDSub = $('#dSub');
+    const elDClose = $('#dClose');
+
+    const elSev = $('#sevSel');
+    const elOnlyActive = $('#onlyActive');
+    const elCompact = $('#compactChk');
+
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const tabViews = {
+      overview: $('#tab_overview'),
+      recipes: $('#tab_recipes'),
+      replace: $('#tab_replace')
+    };
+
+    // Mock: funktionshindrade ingredienser + kopplade recept
+    const DB = [
+      {
+        id: 'i1',
+        name: 'Ägg lösvikt frigående M/L / 3464-B / KRONÄGG / KRONÄGG',
+        sev: 'p0',
+        price: '32.06',
+        recipes: [
+          { name: 'Panering 1', status: 'active' },
+          { name: 'Oxjärpar', status: 'active' },
+          { name: 'Pannkakor', status: 'active' },
+          { name: 'Vegetariska pannbiffar', status: 'inactive' },
+          { name: 'Carbonara pasta', status: 'active' }
+        ]
+      },
+      {
+        id: 'i2',
+        name: 'Grädde mat 40% (saknar GTIN)',
+        sev: 'p1',
+        price: '—',
+        recipes: [
+          { name: 'Kalvstek med gräddsås', status: 'active' },
+          { name: 'Gräddstuvad potatis', status: 'active' }
+        ]
+      },
+      {
+        id: 'i3',
+        name: 'Buljongtärning (utgående artikel)',
+        sev: 'p2',
+        price: '—',
+        recipes: [
+          { name: 'Mustig skaldjurssoppa', status: 'active' }
+        ]
+      }
+    ];
+
+    // Mock: ersättningskatalog
+    const CATALOG = [
+      { id:'c1', name:'Ägg frigående M/L 15-pack', price:'29.90' },
+      { id:'c2', name:'Ägg ekologiska M/L', price:'34.50' },
+      { id:'c3', name:'Äggvita pasteuriserad', price:'41.00' },
+      { id:'c4', name:'Grädde mat 40% 5L', price:'—' },
+      { id:'c5', name:'Buljong fond koncentrat', price:'—' }
+    ];
+
+    const state = {
+      q: '',
+      sev: 'all',
+      onlyActive: true,
+      compact: false,
+      active: null,
+      repQ: '',
+      repPick: null
+    };
+
+    function sevLabel(s){
+      if (s === 'p0') return { t:'P0', cls:'badge badgeOk' };
+      if (s === 'p1') return { t:'P1', cls:'badge badgeMuted' };
+      return { t:'P2', cls:'badge badgeMuted' };
+    }
+
+    function text(v){ return (v ?? '').toString(); }
+
+    function matches(item){
+      if (state.sev !== 'all' && item.sev !== state.sev) return false;
+      const q = state.q.trim().toLowerCase();
+      if (!q) return true;
+      const hay = `${item.name} ${item.recipes.map(r=>r.name).join(' ')}`.toLowerCase();
+      return hay.includes(q);
+    }
+
+    function render(){
+      const rows = DB.filter(matches);
+      elMeta.textContent = `${rows.length} träffar`;
+
+      elTbody.textContent = '';
+      for (const it of rows){
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = it.name;
+
+        const tdSev = document.createElement('td');
+        const s = sevLabel(it.sev);
+        const b = document.createElement('span');
+        b.className = s.cls;
+        b.textContent = s.t;
+        tdSev.appendChild(b);
+
+        const tdCount = document.createElement('td');
+        tdCount.textContent = String(it.recipes.length);
+
+        const tdPrice = document.createElement('td');
+        tdPrice.textContent = it.price;
+
+        const tdAct = document.createElement('td');
+        tdAct.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'Byt ut';
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDrawer(it);
+          setTab('replace');
+        });
+        tdAct.appendChild(btn);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdSev);
+        tr.appendChild(tdCount);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdAct);
+
+        if (state.compact){
+          tr.querySelectorAll('td').forEach(td => td.style.padding = '9px 12px');
+        }
+
+        tr.addEventListener('click', () => openDrawer(it));
+        elTbody.appendChild(tr);
+      }
+    }
+
+    function openDrawer(it){
+      state.active = it;
+      state.repPick = null;
+      $('#repDo').disabled = true;
+      $('#repNote').textContent = '';
+
+      elDTitle.textContent = 'Detaljer';
+      elDSub.textContent = 'Byt ut ingrediens i recept';
+
+      $('#ovName').textContent = it.name;
+      const s = sevLabel(it.sev);
+      const sevEl = $('#ovSev');
+      sevEl.className = s.cls;
+      sevEl.textContent = s.t;
+
+      $('#ovCount').textContent = String(it.recipes.length);
+      $('#ovPrice').textContent = it.price;
+
+      renderRecipeList();
+      renderRepList();
+
+      elOverlay.classList.add('open');
+      elDrawer.classList.add('open');
+      elOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDrawer(){
+      elOverlay.classList.remove('open');
+      elDrawer.classList.remove('open');
+      elOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setTab(key){
+      for (const [k, el] of Object.entries(tabViews)){
+        el.style.display = (k === key) ? '' : 'none';
+      }
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    }
+
+    function renderRecipeList(){
+      const it = state.active;
+      const body = $('#rBody');
+      body.textContent = '';
+      if (!it){ $('#rMeta').textContent = '—'; return; }
+
+      const list = state.onlyActive ? it.recipes.filter(r => r.status === 'active') : it.recipes;
+      $('#rMeta').textContent = `${list.length} st`;
+
+      for (const r of list){
+        const tr = document.createElement('tr');
+
+        const td1 = document.createElement('td');
+        td1.textContent = r.name;
+
+        const td2 = document.createElement('td');
+        const b = document.createElement('span');
+        b.className = 'badge ' + (r.status === 'active' ? 'badgeOk' : 'badgeMuted');
+        b.textContent = r.status === 'active' ? 'Aktiv' : 'Inaktiv';
+        td2.appendChild(b);
+
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        body.appendChild(tr);
+      }
+    }
+
+    function renderRepList(){
+      const body = $('#repBody');
+      body.textContent = '';
+
+      const q = state.repQ.trim().toLowerCase();
+      const rows = CATALOG.filter(x => !q || x.name.toLowerCase().includes(q));
+
+      for (const x of rows){
+        const tr = document.createElement('tr');
+
+        const td1 = document.createElement('td');
+        td1.textContent = x.name;
+
+        const td2 = document.createElement('td');
+        td2.textContent = x.price;
+
+        const td3 = document.createElement('td');
+        td3.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = (state.repPick && state.repPick.id === x.id) ? 'Vald' : 'Välj';
+        btn.addEventListener('click', () => {
+          state.repPick = x;
+          $('#repDo').disabled = false;
+          renderRepList();
+        });
+        td3.appendChild(btn);
+
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        tr.appendChild(td3);
+        body.appendChild(tr);
+      }
+    }
+
+    // Events
+    elBack.addEventListener('click', () => history.back());
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement !== elQ){
+        e.preventDefault();
+        elQ.focus();
+      }
+      if (e.key === 'Escape'){
+        closeDrawer();
+      }
+    });
+
+    elQ.addEventListener('input', () => { state.q = elQ.value; render(); });
+
+    elSev.addEventListener('change', () => { state.sev = elSev.value; render(); });
+    elOnlyActive.addEventListener('change', () => {
+      state.onlyActive = !!elOnlyActive.checked;
+      renderRecipeList();
+    });
+    elCompact.addEventListener('change', () => { state.compact = !!elCompact.checked; render(); });
+
+    elOverlay.addEventListener('click', closeDrawer);
+    elDClose.addEventListener('click', closeDrawer);
+
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    $('#repQ').addEventListener('input', () => {
+      state.repQ = $('#repQ').value;
+      renderRepList();
+    });
+
+    $('#repCancel').addEventListener('click', () => {
+      state.repPick = null;
+      $('#repDo').disabled = true;
+      $('#repNote').textContent = '';
+      $('#repQ').value = '';
+      state.repQ = '';
+      renderRepList();
+    });
+
+    $('#repDo').addEventListener('click', () => {
+      if (!state.active || !state.repPick) return;
+      $('#repNote').textContent = `Bytte ut (demo): "${state.active.name}" → "${state.repPick.name}".`;
+    });
+
+    $('#exportBtn').addEventListener('click', () => {
+      alert('Exportera (MVP): koppla senare till riktig export.');
+    });
+
+    // Boot
+    setTab('overview');
+    render();
+  </script>
+
+</body>
+</html>
