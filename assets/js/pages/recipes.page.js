@@ -1,20 +1,22 @@
 /* ============================================================
-   FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   Sida 1 logik: Receptlista
-   Patch (UI småfix):
-   - NY: Länk från drawer → meal-recipe-detail.html?id=<mrId> (bara för måltidsrecept)
-   - NY: 5:e flik i drawer: “Måltidsvy” (visas bara när aktivt recept är måltid)
-   - Behåller XSS-safe rendering (textContent + createElement)
+   FIL: assets/js/pages/disabled.page.js  (HEL FIL)
+   Sida 2 logik: Funktionshindrade ingredienser
+   Patch:
+   - Använder gemensam fejkdata via assets/js/app.js
+     - getDisabledIngredientsMock()
+     - getReplacementCatalogMock()
+   - Samma UI-flöde som innan (sök/filters/drawer/byt ut)
+   Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ */
 
-import { getMockDB, queryRecipes, getMealSummary, expandMeal } from "../app.js";
+import { getDisabledIngredientsMock, getReplacementCatalogMock, norm } from "../app.js";
 
 /**
- * Initieras från pages/recipes.html:
- *   import { initRecipesPage } from '../assets/js/pages/recipes.page.js';
- *   initRecipesPage();
+ * Initieras från pages/recipe-disabled-ingredients.html:
+ *   import { initDisabledIngredientsPage } from '../assets/js/pages/disabled.page.js';
+ *   initDisabledIngredientsPage();
  */
-export function initRecipesPage() {
+export function initDisabledIngredientsPage() {
   const $ = (sel) => document.querySelector(sel);
 
   const elBack = $("#backBtn");
@@ -28,452 +30,199 @@ export function initRecipesPage() {
   const elDSub = $("#dSub");
   const elDClose = $("#dClose");
 
-  const elSelPanel = $("#selPanel");
-  const elSelCount = $("#selCount");
-  const elSelBody = $("#selBody");
-  const elSelClose = $("#selClose");
-
-  const elType = $("#typeSel");
-  const elStatus = $("#statusSel");
-  const elCat = $("#catSel");
+  const elSev = $("#sevSel");
+  const elOnlyActive = $("#onlyActive");
   const elCompact = $("#compactChk");
 
-  let tabs = Array.from(document.querySelectorAll(".tab"));
+  const tabs = Array.from(document.querySelectorAll(".tab"));
   const tabViews = {
     overview: $("#tab_overview"),
-    climate: $("#tab_climate"),
-    ingredients: $("#tab_ingredients"),
-    history: $("#tab_history"),
-    // mealview skapas dynamiskt
+    recipes: $("#tab_recipes"),
+    replace: $("#tab_replace"),
   };
 
-  // Drawer fields
-  const fName = $("#fName");
-  const fMealName = $("#fMealName");
-  const fStatus = $("#fStatus");
-  const fDesc = $("#fDesc");
-  const eName = $("#eName");
-  const saveNote = $("#saveNote");
+  // Help popover (om den finns i sidan)
+  const helpBtn = $("#helpBtn");
+  const helpPop = $("#helpPop");
+  const helpClose = $("#helpClose");
 
-  const co2Badge = $("#co2Badge");
-  const energyBadge = $("#energyBadge");
-  const sizeBadge = $("#sizeBadge");
-
-  const ingList = $("#ingList");
-  const histList = $("#histList");
-
-  // Buttons
-  const createBtn = $("#createBtn");
-  const saveBtn = $("#saveBtn");
-  const dupBtn = $("#dupBtn");
-  const bulkInactive = $("#bulkInactive");
-  const bulkOpen = $("#bulkOpen");
-
-  // DB
-  const db = getMockDB();
+  // Data
+  const DB = getDisabledIngredientsMock();
+  const CATALOG = getReplacementCatalogMock();
 
   const state = {
     q: "",
-    type: "all",
-    status: "active",
-    cat: "all",
+    sev: "all",
+    onlyActive: true,
     compact: false,
-    selected: new Map(), // id -> recipe
-    activeId: null,
+    active: null,
+    repQ: "",
+    repPick: null,
   };
 
-  function text(v) {
-    return (v ?? "").toString();
-  }
-
-  function ensureMealViewTab() {
-    // Skapa en 5:e flik "Måltidsvy" + content div utan att patcha HTML
-    if (document.querySelector('.tab[data-tab="mealview"]')) return;
-
-    const tabsBar = document.querySelector(".tabs");
-    if (!tabsBar) return;
-
-    const btn = document.createElement("button");
-    btn.className = "tab";
-    btn.type = "button";
-    btn.dataset.tab = "mealview";
-    btn.textContent = "Måltidsvy";
-    btn.style.display = "none"; // visas bara för måltidsrecept
-
-    tabsBar.appendChild(btn);
-
-    const body = tabsBar.parentElement; // drawerBody
-    const view = document.createElement("div");
-    view.id = "tab_mealview";
-    view.style.display = "none";
-
-    // Innehåll skapas i openDrawer() per måltid
-    const box = document.createElement("div");
-    box.className = "card";
-    box.style.padding = "14px";
-    box.style.boxShadow = "none";
-    box.id = "mealViewBox";
-    view.appendChild(box);
-
-    body.appendChild(view);
-
-    tabViews.mealview = view;
-
-    // refresh tabs cache + bind click
-    tabs = Array.from(document.querySelectorAll(".tab"));
-    btn.addEventListener("click", () => setTab("mealview"));
+  function sevLabel(s) {
+    if (s === "p0") return { t: "P0", cls: "badge badgeOk" };
+    if (s === "p1") return { t: "P1", cls: "badge badgeMuted" };
+    return { t: "P2", cls: "badge badgeMuted" };
   }
 
   function setTab(key) {
     for (const [k, el] of Object.entries(tabViews)) {
-      if (!el) continue;
       el.style.display = k === key ? "" : "none";
     }
     tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === key));
   }
 
+  function matches(item) {
+    if (state.sev !== "all" && item.sev !== state.sev) return false;
+
+    const q = norm(state.q);
+    if (!q) return true;
+
+    const hay = norm(`${item.name} ${item.recipes.map((r) => r.name).join(" ")}`);
+    return hay.includes(q);
+  }
+
   function render() {
-    const rows = queryRecipes(db, {
-      text: state.q,
-      type: state.type,
-      status: state.status,
-      cat: state.cat,
-    });
-
+    const rows = DB.filter(matches);
     elMeta.textContent = `${rows.length} träffar`;
-    elTbody.textContent = "";
 
-    for (const r of rows) {
+    elTbody.textContent = "";
+    for (const it of rows) {
       const tr = document.createElement("tr");
 
-      // Name + checkbox
       const tdName = document.createElement("td");
+      tdName.textContent = it.name;
 
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.style.marginRight = "10px";
-      cb.checked = state.selected.has(r.id);
-      cb.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (cb.checked) state.selected.set(r.id, r);
-        else state.selected.delete(r.id);
-        renderSelectionPanel();
-      });
-
-      const a = document.createElement("a");
-      a.href = "#";
-      a.textContent = r.name;
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        openDrawer(r.id);
-      });
-
-      tdName.appendChild(cb);
-      tdName.appendChild(a);
-
-      // MealName
-      const tdMeal = document.createElement("td");
-      tdMeal.textContent = r.mealName;
-
-      // Type
-      const tdType = document.createElement("td");
-      tdType.textContent = r.type === "meal" ? "Måltid" : "Under";
-
-      // Price
-      const tdPrice = document.createElement("td");
-      tdPrice.textContent = r.price ?? "—";
-
-      // Status
-      const tdStatus = document.createElement("td");
+      const tdSev = document.createElement("td");
+      const s = sevLabel(it.sev);
       const b = document.createElement("span");
-      b.className = "badge " + (r.status === "active" ? "badgeOk" : "badgeMuted");
-      b.textContent = r.status === "active" ? "Aktiv" : "Inaktiv";
-      tdStatus.appendChild(b);
+      b.className = s.cls;
+      b.textContent = s.t;
+      tdSev.appendChild(b);
 
-      // Actions
+      const tdCount = document.createElement("td");
+      tdCount.textContent = String(it.recipes.length);
+
+      const tdPrice = document.createElement("td");
+      tdPrice.textContent = it.price;
+
       const tdAct = document.createElement("td");
       tdAct.className = "actions";
       const btn = document.createElement("button");
-      btn.className = "iconBtn";
-      btn.title = "Detaljer";
-      btn.textContent = "⋯";
+      btn.className = "btn";
+      btn.textContent = "Byt ut";
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        openDrawer(r.id);
+        openDrawer(it);
+        setTab("replace");
       });
       tdAct.appendChild(btn);
 
       tr.appendChild(tdName);
-      tr.appendChild(tdMeal);
-      tr.appendChild(tdType);
+      tr.appendChild(tdSev);
+      tr.appendChild(tdCount);
       tr.appendChild(tdPrice);
-      tr.appendChild(tdStatus);
       tr.appendChild(tdAct);
 
       if (state.compact) {
         tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
       }
 
-      tr.addEventListener("click", () => openDrawer(r.id));
+      tr.addEventListener("click", () => openDrawer(it));
       elTbody.appendChild(tr);
     }
   }
 
-  function renderSelectionPanel() {
-    const n = state.selected.size;
-    elSelCount.textContent = String(n);
-
-    if (n === 0) {
-      elSelPanel.classList.remove("open");
-      elSelBody.textContent = "";
+  function renderRecipeList() {
+    const it = state.active;
+    const body = $("#rBody");
+    body.textContent = "";
+    if (!it) {
+      $("#rMeta").textContent = "—";
       return;
     }
 
-    elSelPanel.classList.add("open");
-    elSelBody.textContent = "";
+    const list = state.onlyActive ? it.recipes.filter((r) => r.status === "active") : it.recipes;
+    $("#rMeta").textContent = `${list.length} st`;
 
-    for (const r of state.selected.values()) {
-      const row = document.createElement("div");
-      row.className = "selectionItem";
+    for (const r of list) {
+      const tr = document.createElement("tr");
 
-      const left = document.createElement("div");
-      const nm = document.createElement("div");
-      nm.className = "name";
-      nm.textContent = r.name;
+      const td1 = document.createElement("td");
+      td1.textContent = r.name;
 
-      const sub = document.createElement("div");
-      sub.className = "sub";
-      sub.textContent =
-        (r.status === "active" ? "Aktiv" : "Inaktiv") +
-        " • " +
-        (r.type === "meal" ? "Måltid" : "Under");
+      const td2 = document.createElement("td");
+      const b = document.createElement("span");
+      b.className = "badge " + (r.status === "active" ? "badgeOk" : "badgeMuted");
+      b.textContent = r.status === "active" ? "Aktiv" : "Inaktiv";
+      td2.appendChild(b);
 
-      left.appendChild(nm);
-      left.appendChild(sub);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      body.appendChild(tr);
+    }
+  }
 
-      const del = document.createElement("button");
-      del.className = "iconBtn";
-      del.title = "Ta bort";
-      del.textContent = "🗑";
-      del.addEventListener("click", () => {
-        state.selected.delete(r.id);
-        renderSelectionPanel();
-        render();
+  function renderRepList() {
+    const body = $("#repBody");
+    body.textContent = "";
+
+    const q = norm(state.repQ);
+    const rows = CATALOG.filter((x) => !q || norm(x.name).includes(q));
+
+    for (const x of rows) {
+      const tr = document.createElement("tr");
+
+      const td1 = document.createElement("td");
+      td1.textContent = x.name;
+
+      const td2 = document.createElement("td");
+      td2.textContent = x.price;
+
+      const td3 = document.createElement("td");
+      td3.className = "actions";
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = state.repPick && state.repPick.id === x.id ? "Vald" : "Välj";
+      btn.addEventListener("click", () => {
+        state.repPick = x;
+        $("#repDo").disabled = false;
+        renderRepList();
       });
+      td3.appendChild(btn);
 
-      row.appendChild(left);
-      row.appendChild(del);
-      elSelBody.appendChild(row);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tr.appendChild(td3);
+      body.appendChild(tr);
     }
   }
 
-  function renderIngredientsTab(r) {
-    ingList.textContent = "";
+  function openDrawer(it) {
+    state.active = it;
+    state.repPick = null;
+    $("#repDo").disabled = true;
+    $("#repNote").textContent = "";
 
-    const box = document.createElement("div");
-    box.className = "card";
-    box.style.padding = "12px";
-    box.style.boxShadow = "none";
+    elDTitle.textContent = "Detaljer";
+    elDSub.textContent = "Byt ut ingrediens i recept";
 
-    if (r.type === "meal") {
-      const { subs } = expandMeal(db, r.id);
+    $("#ovName").textContent = it.name;
+    const s = sevLabel(it.sev);
+    const sevEl = $("#ovSev");
+    sevEl.className = s.cls;
+    sevEl.textContent = s.t;
 
-      const h = document.createElement("div");
-      h.style.fontWeight = "900";
-      h.textContent = `Underrecept (${subs.length})`;
-      box.appendChild(h);
+    $("#ovCount").textContent = String(it.recipes.length);
+    $("#ovPrice").textContent = it.price;
 
-      const ul = document.createElement("ul");
-      ul.style.margin = "8px 0 14px 18px";
-      for (const s of subs) {
-        const li = document.createElement("li");
-        li.textContent = s.name + (s.status === "inactive" ? " (inaktiv)" : "");
-        ul.appendChild(li);
-      }
-      box.appendChild(ul);
+    renderRecipeList();
+    renderRepList();
 
-      const h2 = document.createElement("div");
-      h2.style.fontWeight = "900";
-      h2.textContent = "Ingredienser (måltidsnivå)";
-      box.appendChild(h2);
-
-      const ul2 = document.createElement("ul");
-      ul2.style.margin = "8px 0 0 18px";
-      for (const it of Array.isArray(r.ingredients) ? r.ingredients : []) {
-        const li = document.createElement("li");
-        li.textContent = `${it.name} • ${it.qty} ${it.unit}`;
-        ul2.appendChild(li);
-      }
-      box.appendChild(ul2);
-    } else {
-      const h = document.createElement("div");
-      h.style.fontWeight = "900";
-      h.textContent = "Ingredienser";
-      box.appendChild(h);
-
-      const ul = document.createElement("ul");
-      ul.style.margin = "8px 0 0 18px";
-      for (const it of Array.isArray(r.ingredients) ? r.ingredients : []) {
-        const li = document.createElement("li");
-        li.textContent = `${it.name} • ${it.qty} ${it.unit}`;
-        ul.appendChild(li);
-      }
-      box.appendChild(ul);
-    }
-
-    ingList.appendChild(box);
-  }
-
-  function renderHistoryTab(r) {
-    histList.textContent = "";
-
-    const arr = Array.isArray(r.history) ? r.history : [];
-    if (arr.length === 0) {
-      histList.textContent = "—";
-      return;
-    }
-
-    const box = document.createElement("div");
-    box.className = "card";
-    box.style.padding = "12px";
-    box.style.boxShadow = "none";
-
-    for (const h of arr) {
-      const line = document.createElement("div");
-      line.style.padding = "10px 0";
-      line.style.borderBottom = "1px solid var(--border)";
-      line.textContent = `${h.date} • ${h.change}`;
-      box.appendChild(line);
-    }
-    histList.appendChild(box);
-  }
-
-  function renderMealViewTab(mealId) {
-    const mealTabBtn = document.querySelector('.tab[data-tab="mealview"]');
-    const box = document.querySelector("#mealViewBox");
-    if (!mealTabBtn || !box) return;
-
-    const r = db.byId.get(mealId);
-    if (!r || r.type !== "meal") {
-      mealTabBtn.style.display = "none";
-      box.textContent = "";
-      return;
-    }
-
-    mealTabBtn.style.display = ""; // visa 5:e fliken
-
-    const sum = getMealSummary(db, mealId);
-    const { subs } = expandMeal(db, mealId);
-
-    box.textContent = "";
-
-    const title = document.createElement("div");
-    title.style.fontWeight = "900";
-    title.textContent = "Öppna måltidsrecept";
-    box.appendChild(title);
-
-    const p = document.createElement("div");
-    p.className = "muted small";
-    p.style.marginTop = "6px";
-    p.textContent = `Den här måltiden består av ${sum?.subCount ?? subs.length} underrecept.`;
-    box.appendChild(p);
-
-    const link = document.createElement("a");
-    link.className = "btn btnPrimary";
-    link.style.marginTop = "12px";
-    link.style.display = "inline-flex";
-    link.style.alignItems = "center";
-    link.href = `./meal-recipe-detail.html?id=${encodeURIComponent(mealId)}`;
-    link.textContent = "Öppna måltidsvy";
-    box.appendChild(link);
-
-    const ulTitle = document.createElement("div");
-    ulTitle.style.fontWeight = "900";
-    ulTitle.style.marginTop = "14px";
-    ulTitle.textContent = "Underrecept";
-    box.appendChild(ulTitle);
-
-    const ul = document.createElement("ul");
-    ul.style.margin = "8px 0 0 18px";
-    for (const s of subs) {
-      const li = document.createElement("li");
-      li.textContent = s.name + (s.status === "inactive" ? " (inaktiv)" : "");
-      ul.appendChild(li);
-    }
-    box.appendChild(ul);
-  }
-
-  function hideMealViewTabIfAny() {
-    const mealTabBtn = document.querySelector('.tab[data-tab="mealview"]');
-    const view = tabViews.mealview;
-    const box = document.querySelector("#mealViewBox");
-    if (mealTabBtn) mealTabBtn.style.display = "none";
-    if (view) view.style.display = "none";
-    if (box) box.textContent = "";
-  }
-
-  function openDrawer(id) {
-    const r = db.byId.get(id);
-    if (!r) return;
-
-    ensureMealViewTab(); // skapa 5:e fliken om den inte finns
-    state.activeId = id;
-    saveNote.textContent = "";
-    eName.style.display = "none";
-
-    elDTitle.textContent = r.name;
-
-    // Subtitle + (NY) länk i subtitle-raden (utan innerHTML)
-    elDSub.textContent = "";
-    const subText = document.createElement("span");
-
-    if (r.type === "meal") {
-      const sum = getMealSummary(db, id);
-      subText.textContent = `Måltidsrecept • ${r.status === "active" ? "Aktiv" : "Inaktiv"} • ${sum?.subCount ?? 0} underrecept`;
-    } else {
-      subText.textContent = `Underrecept • ${r.status === "active" ? "Aktiv" : "Inaktiv"}`;
-    }
-    elDSub.appendChild(subText);
-
-    if (r.type === "meal") {
-      const sep = document.createElement("span");
-      sep.textContent = " • ";
-      sep.className = "muted";
-      elDSub.appendChild(sep);
-
-      const a = document.createElement("a");
-      a.href = `./meal-recipe-detail.html?id=${encodeURIComponent(id)}`;
-      a.textContent = "Öppna måltidsvy";
-      a.style.fontWeight = "800";
-      elDSub.appendChild(a);
-    }
-
-    // Fill fields
-    fName.value = text(r.name);
-    fMealName.value = text(r.mealName);
-    fStatus.value = r.status;
-    fDesc.value = text(r.desc);
-
-    // Climate badges (placeholder)
-    co2Badge.textContent = text(r.co2 || "—");
-    energyBadge.textContent = text(r.energy || "—");
-    sizeBadge.textContent = text(r.size || "—");
-
-    // Tabs content
-    renderIngredientsTab(r);
-    renderHistoryTab(r);
-
-    // Mealview (5:e tab) show/hide
-    if (r.type === "meal") renderMealViewTab(id);
-    else hideMealViewTabIfAny();
-
-    // Open
     elOverlay.classList.add("open");
     elDrawer.classList.add("open");
     elOverlay.setAttribute("aria-hidden", "false");
-
-    // Default tab
-    setTab("overview");
   }
 
   function closeDrawer() {
@@ -482,44 +231,25 @@ export function initRecipesPage() {
     elOverlay.setAttribute("aria-hidden", "true");
   }
 
-  // Buttons actions
-  function doSave() {
-    const r = db.byId.get(state.activeId);
-    if (!r) return;
-
-    const name = fName.value.trim();
-    if (!name) {
-      eName.style.display = "";
-      eName.textContent = "Namn krävs.";
-      return;
-    }
-    eName.style.display = "none";
-
-    r.name = name;
-    r.mealName = fMealName.value.trim() || name;
-    r.status = fStatus.value;
-    r.desc = fDesc.value;
-
-    saveNote.textContent = "Sparat (demo).";
-    render();
-    // uppdatera subtitle och mealview om måltid
-    openDrawer(r.id);
+  // Help popover
+  function openHelp() {
+    if (!helpPop || !helpBtn) return;
+    helpPop.style.display = "";
+    helpBtn.setAttribute("aria-expanded", "true");
+    setTimeout(() => {
+      const onDoc = (e) => {
+        if (!helpPop.contains(e.target) && e.target !== helpBtn) {
+          document.removeEventListener("mousedown", onDoc);
+          closeHelp();
+        }
+      };
+      document.addEventListener("mousedown", onDoc);
+    }, 0);
   }
-
-  function doDuplicate() {
-    const r = db.byId.get(state.activeId);
-    if (!r) return;
-
-    const id = (r.type === "meal" ? "mr" : "sr") + Math.random().toString(16).slice(2);
-    const copy = JSON.parse(JSON.stringify(r));
-    copy.id = id;
-    copy.name = r.name + " (kopia)";
-
-    db.recipes.unshift(copy);
-    db.byId.set(copy.id, copy);
-
-    saveNote.textContent = "Duplicerat (demo).";
-    render();
+  function closeHelp() {
+    if (!helpPop || !helpBtn) return;
+    helpPop.style.display = "none";
+    helpBtn.setAttribute("aria-expanded", "false");
   }
 
   // Events
@@ -532,7 +262,7 @@ export function initRecipesPage() {
     }
     if (e.key === "Escape") {
       closeDrawer();
-      elSelPanel.classList.remove("open");
+      closeHelp();
     }
   });
 
@@ -541,19 +271,14 @@ export function initRecipesPage() {
     render();
   });
 
-  elType?.addEventListener("change", () => {
-    state.type = elType.value;
+  elSev?.addEventListener("change", () => {
+    state.sev = elSev.value;
     render();
   });
 
-  elStatus?.addEventListener("change", () => {
-    state.status = elStatus.value;
-    render();
-  });
-
-  elCat?.addEventListener("change", () => {
-    state.cat = elCat.value;
-    render();
+  elOnlyActive?.addEventListener("change", () => {
+    state.onlyActive = !!elOnlyActive.checked;
+    renderRecipeList();
   });
 
   elCompact?.addEventListener("change", () => {
@@ -564,42 +289,39 @@ export function initRecipesPage() {
   elOverlay?.addEventListener("click", closeDrawer);
   elDClose?.addEventListener("click", closeDrawer);
 
-  // Bind tab clicks (inkl ev mealview när den skapas)
-  tabs.forEach((t) =>
-    t.addEventListener("click", () => {
-      setTab(t.dataset.tab);
-    })
-  );
+  tabs.forEach((t) => t.addEventListener("click", () => setTab(t.dataset.tab)));
 
-  saveBtn?.addEventListener("click", doSave);
-  dupBtn?.addEventListener("click", doDuplicate);
-
-  createBtn?.addEventListener("click", () => {
-    alert("Skapa ny (nästa steg): koppla till create-flow.");
+  $("#repQ")?.addEventListener("input", () => {
+    state.repQ = $("#repQ").value;
+    renderRepList();
   });
 
-  elSelClose?.addEventListener("click", () => {
-    state.selected.clear();
-    renderSelectionPanel();
-    render();
+  $("#repCancel")?.addEventListener("click", () => {
+    state.repPick = null;
+    $("#repDo").disabled = true;
+    $("#repNote").textContent = "";
+    $("#repQ").value = "";
+    state.repQ = "";
+    renderRepList();
   });
 
-  bulkOpen?.addEventListener("click", () => {
-    const first = state.selected.values().next().value;
-    if (first) openDrawer(first.id);
+  $("#repDo")?.addEventListener("click", () => {
+    if (!state.active || !state.repPick) return;
+    $("#repNote").textContent = `Bytte ut (demo): "${state.active.name}" → "${state.repPick.name}".`;
   });
 
-  bulkInactive?.addEventListener("click", () => {
-    for (const r of state.selected.values()) {
-      r.status = "inactive";
-    }
-    state.selected.clear();
-    renderSelectionPanel();
-    render();
+  $("#exportBtn")?.addEventListener("click", () => {
+    alert("Exportera (MVP): koppla senare till riktig export.");
   });
+
+  helpBtn?.addEventListener("click", () => {
+    const open = helpPop && helpPop.style.display !== "none" && helpPop.style.display !== "";
+    if (open) closeHelp();
+    else openHelp();
+  });
+  helpClose?.addEventListener("click", closeHelp);
 
   // Boot
   setTab("overview");
   render();
-  renderSelectionPanel();
 }
