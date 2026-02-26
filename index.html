@@ -1,1 +1,36 @@
-
+<!-- ============================================================
+     FIL: index.html  (HEL FIL)
+     Repo: Kostdata UI (GitHub Pages)
+     Syfte: Enkel start + länkar till sidorna (redirect till Recept)
+     Policy: statisk, inga externa libs, XSS-safe (ingen dynamic rendering här)
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kostdata – Recept</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="./assets/css/main.css" />
+  <script>
+    // Redirect till huvudsidan (Sida 1: Receptlista)
+    // GitHub Pages-safe: relativ path
+    location.replace('./pages/recipes.html');
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1 class="heroTitle">Kostdata</h1>
+      <p class="heroSub">Startar Recept…</p>
+      <div class="chipsRow">
+        <a class="btn btnPrimary" href="./pages/recipes.html">Gå till Recept</a>
+        <a class="btn" href="./pages/recipe-disabled-ingredients.html">Funktionshindrade ingredienser</a>
+        <a class="btn" href="./pages/recipe-used-ingredients.html">Använda ingredienser</a>
+        <a class="btn" href="./pages/meal-recipe-detail.html">Måltidsrecept detalj</a>
+      </div>
+      <p class="muted small mt16">Om redirect inte funkar: klicka på en länk ovan.</p>
+    </div>
+  </div>
+</body>
+</html>
