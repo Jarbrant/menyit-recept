@@ -1,1 +1,457 @@
+<!-- ============================================================
+     FIL: pages/recipe-used-ingredients.html  (HEL FIL)
+     Sida 3: Använda ingredienser i recept
+     UI: central sök + tabell + högerpanel som visar recept (och “Byt ut” som flow)
+     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kostdata — Använda ingredienser</title>
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
 
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <button class="backBtn" id="backBtn" title="Tillbaka" aria-label="Tillbaka">←</button>
+        <div>
+          <div class="pageTitle">Använda ingredienser</div>
+          <div class="muted small">Se var en ingrediens används</div>
+        </div>
+      </div>
+
+      <div class="centerSlot">
+        <div class="searchWrap" style="max-width:780px; width:100%;">
+          <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+          </svg>
+          <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens eller recept…" autocomplete="off" />
+          <span class="kbd" title="Snabbtangent">/</span>
+        </div>
+      </div>
+
+      <div class="rightSlot">
+        <a class="btn" href="./recipes.html" title="Recept">Recept</a>
+        <a class="btn" href="./recipe-disabled-ingredients.html" title="Funktionshindrade ingredienser">Fel-ingr</a>
+        <button class="btn btnPrimary" id="exportBtn">Exportera</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- HERO -->
+    <section class="hero">
+      <h1 class="heroTitle">Spåra ingredienser</h1>
+      <p class="heroSub">Håll listan ren. Klicka “Visa” för att öppna recept i ett eget fönster (högerpanel).</p>
+
+      <div class="chipsRow" aria-label="Filter">
+        <div class="chip">
+          <label for="minSel">Minst antal recept</label>
+          <select id="minSel" aria-label="Minst antal recept">
+            <option value="0">Alla</option>
+            <option value="2">2+</option>
+            <option value="5">5+</option>
+            <option value="10">10+</option>
+          </select>
+        </div>
+
+        <div class="chip">
+          <label for="compactChk">Kompakt</label>
+          <input id="compactChk" type="checkbox" />
+        </div>
+      </div>
+    </section>
+
+    <div class="sectionTitle">
+      <h2>Ingredienser</h2>
+      <div class="meta" id="meta">0 träffar</div>
+    </div>
+
+    <section class="card tableCard">
+      <table class="table" aria-label="Använda ingredienser">
+        <thead>
+          <tr>
+            <th style="width:52%;">Ingrediens</th>
+            <th style="width:16%;">Pris</th>
+            <th style="width:16%;">Antal recept</th>
+            <th class="actions" style="width:16%;">Recept</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- OVERLAY + DRAWER -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  <aside class="drawer" id="drawer" aria-label="Detaljer">
+    <div class="drawerHeader">
+      <div>
+        <div class="drawerTitle" id="dTitle">Detaljer</div>
+        <div class="muted small" id="dSub"></div>
+      </div>
+      <button class="iconBtn" id="dClose" title="Stäng" aria-label="Stäng">✕</button>
+    </div>
+
+    <div class="drawerBody">
+      <div class="tabs" role="tablist" aria-label="Detaljflikar">
+        <button class="tab active" data-tab="recipes" type="button">Recept</button>
+        <button class="tab" data-tab="replace" type="button">Byt ut</button>
+        <button class="tab" data-tab="notes" type="button">Notering</button>
+      </div>
+
+      <div id="tab_recipes">
+        <div class="sectionTitle" style="margin-top:0;">
+          <h2>Recept som använder ingrediensen</h2>
+          <div class="meta" id="rMeta">—</div>
+        </div>
+
+        <div class="card tableCard" style="box-shadow:none;">
+          <table class="table" aria-label="Receptlista">
+            <thead>
+              <tr>
+                <th>Recept</th>
+                <th style="width:120px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="rBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab_replace" style="display:none;">
+        <p class="muted small">MVP: välj ersättningsingrediens (demo). Koppla senare mot riktig funktion.</p>
+
+        <div class="field">
+          <label for="repQ">Sök ersättningsingrediens</label>
+          <input class="input" id="repQ" type="search" placeholder="Sök vara/ingrediens…" autocomplete="off" />
+        </div>
+
+        <div class="card tableCard" style="box-shadow:none;">
+          <table class="table" aria-label="Ersättningsförslag">
+            <thead>
+              <tr>
+                <th>Ersätt med</th>
+                <th style="width:120px;">Pris</th>
+                <th class="actions" style="width:110px;">Åtgärd</th>
+              </tr>
+            </thead>
+            <tbody id="repBody"></tbody>
+          </table>
+        </div>
+
+        <div class="flexBetween mt16">
+          <button class="btn" id="repCancel">Avbryt</button>
+          <button class="btn btnPrimary" id="repDo" disabled>Byt ut</button>
+        </div>
+
+        <p class="muted small mt12" id="repNote"></p>
+      </div>
+
+      <div id="tab_notes" style="display:none;">
+        <div class="field">
+          <label>Notering</label>
+          <textarea class="input" id="note" rows="7" style="resize:vertical;" placeholder="Skriv en notering…"></textarea>
+        </div>
+        <button class="btn btnPrimary w100" id="saveNote">Spara notering (demo)</button>
+        <p class="muted small mt12" id="noteSaved"></p>
+      </div>
+
+    </div>
+  </aside>
+
+  <script type="module">
+    const $ = (sel) => document.querySelector(sel);
+
+    const elBack = $('#backBtn');
+    const elQ = $('#q');
+    const elTbody = $('#tbody');
+    const elMeta = $('#meta');
+
+    const elOverlay = $('#overlay');
+    const elDrawer = $('#drawer');
+    const elDTitle = $('#dTitle');
+    const elDSub = $('#dSub');
+    const elDClose = $('#dClose');
+
+    const elMin = $('#minSel');
+    const elCompact = $('#compactChk');
+
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const tabViews = {
+      recipes: $('#tab_recipes'),
+      replace: $('#tab_replace'),
+      notes: $('#tab_notes'),
+    };
+
+    // Mock: ingrediens -> receptlista
+    const DB = [
+      {
+        id:'u1',
+        name:'Ägg',
+        price:'32.06',
+        recipes:[
+          { name:'Panering 1', status:'active' },
+          { name:'Oxjärpar', status:'active' },
+          { name:'Pannkakor', status:'active' },
+          { name:'Vegetariska pannbiffar', status:'inactive' },
+          { name:'Carbonara pasta', status:'active' }
+        ]
+      },
+      {
+        id:'u2',
+        name:'Rismix',
+        price:'—',
+        recipes:[
+          { name:'Biffstroganoff med ris', status:'active' },
+          { name:'Kycklinggryta med ris', status:'active' }
+        ]
+      },
+      {
+        id:'u3',
+        name:'Vitvin',
+        price:'—',
+        recipes:[
+          { name:'Koljafilé med vitvinssås', status:'inactive' }
+        ]
+      }
+    ];
+
+    // Mock: ersättningskatalog
+    const CATALOG = [
+      { id:'c1', name:'Ägg frigående M/L 15-pack', price:'29.90' },
+      { id:'c2', name:'Ägg ekologiska M/L', price:'34.50' },
+      { id:'c3', name:'Äggvita pasteuriserad', price:'41.00' },
+      { id:'c4', name:'Rismix långkornig', price:'—' },
+      { id:'c5', name:'Couscous', price:'—' },
+      { id:'c6', name:'Alkoholfritt vitt matlagningsvin', price:'—' },
+    ];
+
+    const state = {
+      q: '',
+      min: 0,
+      compact: false,
+      active: null,
+      repQ: '',
+      repPick: null,
+      noteById: new Map()
+    };
+
+    function text(v){ return (v ?? '').toString(); }
+
+    function matches(item){
+      if (item.recipes.length < state.min) return false;
+      const q = state.q.trim().toLowerCase();
+      if (!q) return true;
+      const hay = `${item.name} ${item.recipes.map(r=>r.name).join(' ')}`.toLowerCase();
+      return hay.includes(q);
+    }
+
+    function render(){
+      const rows = DB.filter(matches);
+      elMeta.textContent = `${rows.length} träffar`;
+
+      elTbody.textContent = '';
+      for (const it of rows){
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = it.name;
+
+        const tdPrice = document.createElement('td');
+        tdPrice.textContent = it.price;
+
+        const tdCount = document.createElement('td');
+        tdCount.textContent = String(it.recipes.length);
+
+        const tdAct = document.createElement('td');
+        tdAct.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = `Visa (${it.recipes.length})`;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDrawer(it);
+          setTab('recipes');
+        });
+        tdAct.appendChild(btn);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdCount);
+        tr.appendChild(tdAct);
+
+        if (state.compact){
+          tr.querySelectorAll('td').forEach(td => td.style.padding = '9px 12px');
+        }
+
+        tr.addEventListener('click', () => openDrawer(it));
+        elTbody.appendChild(tr);
+      }
+    }
+
+    function openDrawer(it){
+      state.active = it;
+      state.repPick = null;
+      $('#repDo').disabled = true;
+      $('#repNote').textContent = '';
+
+      elDTitle.textContent = it.name;
+      elDSub.textContent = `${it.recipes.length} recept`;
+
+      renderRecipeList();
+      renderRepList();
+
+      const saved = state.noteById.get(it.id) || '';
+      $('#note').value = saved;
+      $('#noteSaved').textContent = saved ? 'Notering laddad (demo).' : '';
+
+      elOverlay.classList.add('open');
+      elDrawer.classList.add('open');
+      elOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDrawer(){
+      elOverlay.classList.remove('open');
+      elDrawer.classList.remove('open');
+      elOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setTab(key){
+      for (const [k, el] of Object.entries(tabViews)){
+        el.style.display = (k === key) ? '' : 'none';
+      }
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    }
+
+    function renderRecipeList(){
+      const it = state.active;
+      const body = $('#rBody');
+      body.textContent = '';
+      if (!it){ $('#rMeta').textContent = '—'; return; }
+
+      $('#rMeta').textContent = `${it.recipes.length} st`;
+      for (const r of it.recipes){
+        const tr = document.createElement('tr');
+
+        const td1 = document.createElement('td');
+        td1.textContent = r.name;
+
+        const td2 = document.createElement('td');
+        const b = document.createElement('span');
+        b.className = 'badge ' + (r.status === 'active' ? 'badgeOk' : 'badgeMuted');
+        b.textContent = r.status === 'active' ? 'Aktiv' : 'Inaktiv';
+        td2.appendChild(b);
+
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        body.appendChild(tr);
+      }
+    }
+
+    function renderRepList(){
+      const body = $('#repBody');
+      body.textContent = '';
+
+      const q = state.repQ.trim().toLowerCase();
+      const rows = CATALOG.filter(x => !q || x.name.toLowerCase().includes(q));
+
+      for (const x of rows){
+        const tr = document.createElement('tr');
+
+        const td1 = document.createElement('td');
+        td1.textContent = x.name;
+
+        const td2 = document.createElement('td');
+        td2.textContent = x.price;
+
+        const td3 = document.createElement('td');
+        td3.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = (state.repPick && state.repPick.id === x.id) ? 'Vald' : 'Välj';
+        btn.addEventListener('click', () => {
+          state.repPick = x;
+          $('#repDo').disabled = false;
+          renderRepList();
+        });
+        td3.appendChild(btn);
+
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        tr.appendChild(td3);
+        body.appendChild(tr);
+      }
+    }
+
+    // Events
+    elBack.addEventListener('click', () => history.back());
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement !== elQ){
+        e.preventDefault();
+        elQ.focus();
+      }
+      if (e.key === 'Escape'){
+        closeDrawer();
+      }
+    });
+
+    elQ.addEventListener('input', () => { state.q = elQ.value; render(); });
+
+    elMin.addEventListener('change', () => {
+      state.min = parseInt(elMin.value, 10) || 0;
+      render();
+    });
+
+    elCompact.addEventListener('change', () => { state.compact = !!elCompact.checked; render(); });
+
+    elOverlay.addEventListener('click', closeDrawer);
+    elDClose.addEventListener('click', closeDrawer);
+
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    $('#repQ').addEventListener('input', () => {
+      state.repQ = $('#repQ').value;
+      renderRepList();
+    });
+
+    $('#repCancel').addEventListener('click', () => {
+      state.repPick = null;
+      $('#repDo').disabled = true;
+      $('#repNote').textContent = '';
+      $('#repQ').value = '';
+      state.repQ = '';
+      renderRepList();
+    });
+
+    $('#repDo').addEventListener('click', () => {
+      if (!state.active || !state.repPick) return;
+      $('#repNote').textContent = `Byt ut (demo): "${state.active.name}" → "${state.repPick.name}".`;
+    });
+
+    $('#saveNote').addEventListener('click', () => {
+      const it = state.active;
+      if (!it) return;
+      state.noteById.set(it.id, $('#note').value);
+      $('#noteSaved').textContent = 'Sparat (demo).';
+    });
+
+    $('#exportBtn').addEventListener('click', () => {
+      alert('Exportera (MVP): koppla senare till riktig export.');
+    });
+
+    // Boot
+    setTab('recipes');
+    render();
+  </script>
+
+</body>
+</html>
