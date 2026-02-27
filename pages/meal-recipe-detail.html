@@ -1,13 +1,16 @@
 <!-- ============================================================
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
-     Sida: Måltidsrecept detalj (SUPERSIDA v1.2 – MER STÄDAD)
+     Sida: Måltidsrecept detalj (SUPERSIDA v1.3 – Underrecept-rutor)
 
-     PATCH: AO-RECIPES-SUPERPAGE-03 (FAS 1)
-     STÄDNING (allt markerat blått i bilden bort):
-       - Bort: “Visa tillagning”-knappen i vänsterkortets header
-       - Bort: sökraden i vänsterkortet (inkl /-hint och /-snabbtangent)
-       - Bort: “Tillagning”-knappen på varje underreceptkort (högerpanelen räcker)
-       - Uppdaterad hjälptext (tar bort referenser till /-sök)
+     PATCH: AO-RECIPES-SUPERPAGE-04 (FAS 1)
+     NYTT enligt bild (alla underrecept ska ha rutor):
+       - Per underrecept: “Portionsstorlek: 100 g” + knapp “Ändra” (demo, lokalt i session)
+       - Per underrecept: “+ Lägg till ingrediens”
+       - Per underrecept: “Sök” (filtrerar endast det underreceptets tabell)
+     Behåll:
+       - Skalning via Portioner (25-bas) på mängd-fält
+       - Produktkort-popover på ingrediensnamn
+       - Klimat & näring drawer
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -39,7 +42,7 @@
         <button class="btn" id="climateBtn" type="button">Klimat & näring</button>
         <button class="btn btnPrimary" id="saveBtn" type="button">Spara</button>
 
-        <!-- Hjälpruta (popover) -->
+        <!-- Hjälpruta -->
         <div id="helpPop"
              class="card"
              role="dialog"
@@ -69,6 +72,7 @@
             <li>Öppnas med <span class="kbd">?id=mrX</span> från receptlistan.</li>
             <li>Underrecept kommer från <span class="kbd">subRecipeIds</span>.</li>
             <li>Portioner skalar ingrediensmängder (demo-basis: 25).</li>
+            <li>Varje underrecept har egen sök + “lägg till ingrediens”.</li>
             <li>Klicka ingrediensnamn för produktkort.</li>
           </ul>
         </div>
@@ -555,12 +559,19 @@
       subs: Array.isArray(expanded.subs) ? expanded.subs.slice() : [],
       portions: parseInt(portionSel.value, 10) || BASE_PORTIONS,
       size: sizeSel.value,
+
       rowsBySub: {},
+
+      // NYTT: per-underrecept UI (portionG + search)
+      subUI: {},
+
       cook: { activeKey: 'meal', byKey: {} }
     };
 
     function initFromModel(){
       const rb = {};
+      const subUI = {};
+
       for (const s of state.subs){
         const ing = Array.isArray(s.ingredients) ? s.ingredients : [];
         rb[s.id] = ing.map((it) => {
@@ -575,8 +586,15 @@
             bestBefore: ''
           };
         });
+
+        subUI[s.id] = {
+          portionG: 100,  // default enligt din bild
+          q: ''
+        };
       }
+
       state.rowsBySub = rb;
+      state.subUI = subUI;
 
       const mIns = state.meal.instructions || {};
       state.cook.byKey['meal'] = {
@@ -628,10 +646,48 @@
       return String(v).replace('.', ',');
     }
 
+    function addRowToSub(subId){
+      if (!state.rowsBySub[subId]) state.rowsBySub[subId] = [];
+      state.rowsBySub[subId].unshift({
+        id: uid('row'),
+        src: {
+          name: 'Ny ingrediens',
+          img: '',
+          displayName: 'Ny ingrediens',
+          brandLine: '—',
+          comparePrice: 'Jmf. —',
+          offerLabel: '',
+          co2PerKgLabel: '',
+          articleNo: '',
+          gtin: '',
+          supplier: { supplierName: '—' },
+          supplierUpdatedAt: ''
+        },
+        name: 'Ny ingrediens',
+        unit: 'st',
+        baseQtyNum: 1,
+        baseQtyRaw: '1',
+        bestBefore: ''
+      });
+      renderSubs();
+    }
+
+    function changeSubPortion(subId){
+      const cur = state.subUI?.[subId]?.portionG ?? 100;
+      const v = prompt('Portionsstorlek (gram):', String(cur));
+      if (v === null) return;
+      const n = Number(String(v).replace(',', '.').trim());
+      if (!Number.isFinite(n) || n <= 0) return;
+      state.subUI[subId].portionG = Math.round(n);
+      renderSubs();
+    }
+
     function renderSubs(){
       subsWrap.textContent = '';
 
       for (const s of state.subs){
+        const ui = state.subUI[s.id] || { portionG: 100, q: '' };
+
         const card = document.createElement('div');
         card.className = 'card';
         card.style.padding = '14px';
@@ -640,6 +696,7 @@
         card.style.borderRadius = '16px';
         card.style.marginTop = '12px';
 
+        // header
         const head = document.createElement('div');
         head.className = 'flexBetween';
         head.style.alignItems = 'flex-start';
@@ -678,6 +735,72 @@
         head.appendChild(left);
         card.appendChild(head);
 
+        // NYTT: “rutor” per underrecept
+        const tools = document.createElement('div');
+        tools.style.display = 'flex';
+        tools.style.flexWrap = 'wrap';
+        tools.style.gap = '10px';
+        tools.style.alignItems = 'center';
+        tools.style.marginTop = '12px';
+
+        const portionBox = document.createElement('div');
+        portionBox.className = 'chip';
+        portionBox.style.background = 'var(--surface)';
+        portionBox.innerHTML = ''; // safety
+        const pLabel = document.createElement('span');
+        pLabel.className = 'muted small';
+        pLabel.style.fontWeight = '900';
+        pLabel.textContent = `Portionsstorlek: ${ui.portionG} g`;
+        portionBox.appendChild(pLabel);
+
+        const btnChange = document.createElement('button');
+        btnChange.className = 'btn';
+        btnChange.type = 'button';
+        btnChange.textContent = 'Ändra';
+        btnChange.addEventListener('click', () => changeSubPortion(s.id));
+
+        const btnAdd = document.createElement('button');
+        btnAdd.className = 'btn';
+        btnAdd.type = 'button';
+        btnAdd.textContent = '+ Lägg till ingrediens';
+        btnAdd.addEventListener('click', () => addRowToSub(s.id));
+
+        const search = document.createElement('div');
+        search.className = 'searchWrap';
+        search.style.margin = '0';
+        search.style.flex = '1';
+        search.style.minWidth = '240px';
+        search.style.borderRadius = '14px';
+
+        const ico = document.createElementNS('http://www.w3.org/2000/svg','svg');
+        ico.setAttribute('viewBox','0 0 24 24');
+        ico.classList.add('searchIcon');
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('fill','currentColor');
+        path.setAttribute('d','M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z');
+        ico.appendChild(path);
+
+        const input = document.createElement('input');
+        input.className = 'searchInput';
+        input.type = 'search';
+        input.placeholder = 'Sök…';
+        input.value = ui.q;
+        input.addEventListener('input', () => {
+          state.subUI[s.id].q = input.value;
+          renderSubs();
+        });
+
+        search.appendChild(ico);
+        search.appendChild(input);
+
+        tools.appendChild(portionBox);
+        tools.appendChild(btnChange);
+        tools.appendChild(btnAdd);
+        tools.appendChild(search);
+
+        card.appendChild(tools);
+
+        // table
         const wrap = document.createElement('div');
         wrap.className = 'card mt12 tableCard';
         wrap.style.boxShadow = 'none';
@@ -709,7 +832,12 @@
         thead.appendChild(trh);
 
         const tbody = document.createElement('tbody');
-        const rows = (state.rowsBySub[s.id] || []);
+        const q = safeStr(ui.q).trim().toLowerCase();
+
+        const rows = (state.rowsBySub[s.id] || []).filter(r => {
+          if (!q) return true;
+          return (`${r.name} ${r.unit}`).toLowerCase().includes(q);
+        });
 
         for (const r of rows){
           const tr = document.createElement('tr');
