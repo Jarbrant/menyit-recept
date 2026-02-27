@@ -1,12 +1,20 @@
 /* ============================================================
    FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   Patch:
-   - Startläge: visa inga recept förrän användaren sökt (q.length >= 1)
-   - Fejkdata (10 recept) används fortfarande, men “dyker upp” först vid sök
-   - Behåller: länk till måltidsvy + 5:e flik “Måltidsvy”
+   PATCH: AO-RECIPES-INGMODE-01 (FAS 1) — Typ: Ingredienser + statusfilter
+   - Nytt typ-läge "ingredient": visar ingredienser som rader
+   - Statusfilter gäller ingredienser i ingrediensläge
+   - Kategori disable i ingrediensläge (irrelevant)
+   - Behåller: startläge 0 tills q.length >= 1
 ============================================================ */
 
-import { getMockDB, queryRecipes, getMealSummary, expandMeal } from "../app.js";
+import {
+  getMockDB,
+  queryRecipes,
+  getMealSummary,
+  expandMeal,
+  listIngredients,
+  norm
+} from "../app.js";
 
 export function initRecipesPage() {
   const $ = (sel) => document.querySelector(sel);
@@ -64,20 +72,37 @@ export function initRecipesPage() {
   const db = getMockDB();
 
   // NÄR ska fejkresultat börja visas?
-  const MIN_QUERY_CHARS = 1; // ändra till 2 om du vill ha “lite mer” sök
+  const MIN_QUERY_CHARS = 1;
 
   const state = {
     q: "",
-    type: "all",
-    status: "active",
+    type: "all",        // all | meal | sub | ingredient
+    status: "active",   // all | active | inactive
     cat: "all",
     compact: false,
-    selected: new Map(),
-    activeId: null,
+    selected: new Map(),  // används bara för receptläge
+    activeId: null,       // recept-id i receptläge
+    activeIngKey: null,   // ingrediens-key i ingrediensläge
   };
 
   function text(v) {
     return (v ?? "").toString();
+  }
+
+  function isIngredientMode() {
+    return state.type === "ingredient";
+  }
+
+  function setTab(key) {
+    for (const [k, el] of Object.entries(tabViews)) {
+      if (!el) continue;
+      el.style.display = k === key ? "" : "none";
+    }
+    tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === key));
+  }
+
+  function shouldShowResultsNow() {
+    return (state.q || "").trim().length >= MIN_QUERY_CHARS;
   }
 
   function ensureMealViewTab() {
@@ -115,26 +140,191 @@ export function initRecipesPage() {
     btn.addEventListener("click", () => setTab("mealview"));
   }
 
-  function setTab(key) {
-    for (const [k, el] of Object.entries(tabViews)) {
-      if (!el) continue;
-      el.style.display = k === key ? "" : "none";
-    }
-    tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === key));
+  function hideMealViewTabIfAny() {
+    const mealTabBtn = document.querySelector('.tab[data-tab="mealview"]');
+    const view = tabViews.mealview;
+    const box = document.querySelector("#mealViewBox");
+    if (mealTabBtn) mealTabBtn.style.display = "none";
+    if (view) view.style.display = "none";
+    if (box) box.textContent = "";
   }
 
-  function shouldShowResultsNow() {
-    return (state.q || "").trim().length >= MIN_QUERY_CHARS;
-  }
-
-  function render() {
-    // Startläge: inga resultat förrän man sökt
-    if (!shouldShowResultsNow()) {
-      elMeta.textContent = `0 träffar`;
-      elTbody.textContent = "";
-      return;
+  function applyModeUI() {
+    // Kategori är irrelevant i ingrediensläge
+    if (elCat) {
+      elCat.disabled = isIngredientMode();
+      if (isIngredientMode()) elCat.value = "all";
     }
 
+    // Bulk/selection är inte relevant i ingrediensläge
+    if (isIngredientMode()) {
+      state.selected.clear();
+      renderSelectionPanel();
+      elSelPanel.classList.remove("open");
+    }
+  }
+
+  /* =========================
+     RENDER: Ingrediensläge
+  ========================== */
+  function renderIngredientRows() {
+    const rows = listIngredients(db, { text: state.q });
+
+    // Statusfilter på ingredienser
+    const filtered = rows.filter((it) => {
+      if (state.status === "all") return true;
+      const st = (it.status || "").toLowerCase();
+      // om status saknas => behandla som active (fail-soft i demo)
+      if (!st) return state.status === "active";
+      return st === state.status;
+    });
+
+    elMeta.textContent = `${filtered.length} träffar`;
+    elTbody.textContent = "";
+
+    for (const it of filtered) {
+      const tr = document.createElement("tr");
+
+      // Namn (klickbar)
+      const tdName = document.createElement("td");
+      const a = document.createElement("a");
+      a.href = "#";
+      a.textContent = it.name || "—";
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        openIngredientDrawer(it);
+      });
+      tdName.appendChild(a);
+
+      // “Måltidsnamn”-kolumnen återanvänds: användning
+      const tdMeal = document.createElement("td");
+      tdMeal.textContent = `Används i ${Number(it.usedCount ?? 0)} recept`;
+
+      const tdType = document.createElement("td");
+      tdType.textContent = "Ingrediens";
+
+      const tdPrice = document.createElement("td");
+      tdPrice.textContent = "—";
+
+      const tdStatus = document.createElement("td");
+      const b = document.createElement("span");
+      const st = (it.status || "").toLowerCase();
+      const isOk = !st || st === "active";
+      b.className = "badge " + (isOk ? "badgeOk" : "badgeMuted");
+      b.textContent = isOk ? "Aktiv" : "Inaktiv";
+      tdStatus.appendChild(b);
+
+      const tdAct = document.createElement("td");
+      tdAct.className = "actions";
+      const btn = document.createElement("button");
+      btn.className = "iconBtn";
+      btn.title = "Detaljer";
+      btn.textContent = "⋯";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openIngredientDrawer(it);
+      });
+      tdAct.appendChild(btn);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdMeal);
+      tr.appendChild(tdType);
+      tr.appendChild(tdPrice);
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdAct);
+
+      if (state.compact) {
+        tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
+      }
+
+      tr.addEventListener("click", () => openIngredientDrawer(it));
+      elTbody.appendChild(tr);
+    }
+  }
+
+  function openIngredientDrawer(it) {
+    if (!it) return;
+
+    // Markera att vi är i ingrediensläge
+    state.activeId = null;
+    state.activeIngKey = it.key || null;
+
+    // Drawer title/sub
+    elDTitle.textContent = it.name || "Ingrediens";
+    elDSub.textContent = "";
+    const sub = document.createElement("span");
+    sub.textContent =
+      `Ingrediens • ` +
+      (it.status && it.status.toLowerCase() === "inactive" ? "Inaktiv" : "Aktiv") +
+      ` • Används i ${Number(it.usedCount ?? 0)} recept`;
+    elDSub.appendChild(sub);
+
+    // Översikt: vi återanvänder samma formfält men låser dem
+    // (ingen ny UX nu, bara “read-only info”)
+    saveNote.textContent = "";
+    eName.style.display = "none";
+
+    fName.value = text(it.name);
+    fMealName.value = text(it.articleNo ? `Artikel: ${it.articleNo}` : "Artikel: —");
+    fStatus.value = (it.status && it.status.toLowerCase() === "inactive") ? "inactive" : "active";
+    fDesc.value = text(it.gtin ? `GTIN: ${it.gtin}` : "GTIN: —");
+
+    // Disable inputs i ingrediensläge (fail-closed)
+    fName.disabled = true;
+    fMealName.disabled = true;
+    fStatus.disabled = true;
+    fDesc.disabled = true;
+    if (saveBtn) saveBtn.disabled = true;
+    if (dupBtn) dupBtn.disabled = true;
+
+    // Klimat-badges etc: visa —
+    co2Badge.textContent = "—";
+    energyBadge.textContent = "—";
+    sizeBadge.textContent = "—";
+
+    // Ingredienser-tab: visa “—” (detta ÄR ingrediensen)
+    ingList.textContent = "";
+    const box = document.createElement("div");
+    box.className = "card";
+    box.style.padding = "12px";
+    box.style.boxShadow = "none";
+
+    const line1 = document.createElement("div");
+    line1.style.fontWeight = "900";
+    line1.textContent = "Produktdata (demo)";
+    box.appendChild(line1);
+
+    const line2 = document.createElement("div");
+    line2.className = "muted small";
+    line2.style.marginTop = "6px";
+    line2.textContent =
+      `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
+    box.appendChild(line2);
+
+    const line3 = document.createElement("div");
+    line3.className = "muted small";
+    line3.style.marginTop = "6px";
+    line3.textContent = `Används i ${Number(it.usedCount ?? 0)} recept.`;
+    box.appendChild(line3);
+
+    ingList.appendChild(box);
+
+    // Historik-tab: enkel placeholder
+    histList.textContent = "—";
+
+    hideMealViewTabIfAny();
+
+    elOverlay.classList.add("open");
+    elDrawer.classList.add("open");
+    elOverlay.setAttribute("aria-hidden", "false");
+
+    setTab("overview");
+  }
+
+  /* =========================
+     RENDER: Receptläge
+  ========================== */
+  function renderRecipesRows() {
     const rows = queryRecipes(db, {
       text: state.q,
       type: state.type,
@@ -215,12 +405,32 @@ export function initRecipesPage() {
     }
   }
 
+  function render() {
+    // Startläge: inga resultat förrän man sökt
+    if (!shouldShowResultsNow()) {
+      elMeta.textContent = `0 träffar`;
+      elTbody.textContent = "";
+      return;
+    }
+
+    if (isIngredientMode()) renderIngredientRows();
+    else renderRecipesRows();
+  }
+
   function renderSelectionPanel() {
     const n = state.selected.size;
     elSelCount.textContent = String(n);
 
     // Om vi är i “ingen sökning”-läge: stäng panelen
     if (!shouldShowResultsNow()) {
+      elSelPanel.classList.remove("open");
+      elSelBody.textContent = "";
+      state.selected.clear();
+      return;
+    }
+
+    // Om ingrediensläge: ingen selection-panel
+    if (isIngredientMode()) {
       elSelPanel.classList.remove("open");
       elSelBody.textContent = "";
       state.selected.clear();
@@ -305,7 +515,9 @@ export function initRecipesPage() {
       ul2.style.margin = "8px 0 0 18px";
       for (const it of Array.isArray(r.ingredients) ? r.ingredients : []) {
         const li = document.createElement("li");
-        li.textContent = `${it.name} • ${it.qty} ${it.unit}`;
+        const meta = `${it.name} • ${it.qty} ${it.unit}`;
+        const extra = `${it.articleNo ? " • " + it.articleNo : ""}${it.gtin ? " • " + it.gtin : ""}`;
+        li.textContent = meta + extra;
         ul2.appendChild(li);
       }
       box.appendChild(ul2);
@@ -319,7 +531,9 @@ export function initRecipesPage() {
       ul.style.margin = "8px 0 0 18px";
       for (const it of Array.isArray(r.ingredients) ? r.ingredients : []) {
         const li = document.createElement("li");
-        li.textContent = `${it.name} • ${it.qty} ${it.unit}`;
+        const meta = `${it.name} • ${it.qty} ${it.unit}`;
+        const extra = `${it.articleNo ? " • " + it.articleNo : ""}${it.gtin ? " • " + it.gtin : ""}`;
+        li.textContent = meta + extra;
         ul.appendChild(li);
       }
       box.appendChild(ul);
@@ -407,18 +621,18 @@ export function initRecipesPage() {
     box.appendChild(ul);
   }
 
-  function hideMealViewTabIfAny() {
-    const mealTabBtn = document.querySelector('.tab[data-tab="mealview"]');
-    const view = tabViews.mealview;
-    const box = document.querySelector("#mealViewBox");
-    if (mealTabBtn) mealTabBtn.style.display = "none";
-    if (view) view.style.display = "none";
-    if (box) box.textContent = "";
-  }
-
   function openDrawer(id) {
     const r = db.byId.get(id);
     if (!r) return;
+
+    // Receptläge: återställ ev ingrediensläge
+    state.activeIngKey = null;
+    fName.disabled = false;
+    fMealName.disabled = false;
+    fStatus.disabled = false;
+    fDesc.disabled = false;
+    if (saveBtn) saveBtn.disabled = false;
+    if (dupBtn) dupBtn.disabled = false;
 
     ensureMealViewTab();
     state.activeId = id;
@@ -480,6 +694,9 @@ export function initRecipesPage() {
   }
 
   function doSave() {
+    // Fail-closed i ingrediensläge
+    if (isIngredientMode()) return;
+
     const r = db.byId.get(state.activeId);
     if (!r) return;
 
@@ -502,6 +719,9 @@ export function initRecipesPage() {
   }
 
   function doDuplicate() {
+    // Fail-closed i ingrediensläge
+    if (isIngredientMode()) return;
+
     const r = db.byId.get(state.activeId);
     if (!r) return;
 
@@ -533,7 +753,6 @@ export function initRecipesPage() {
 
   elQ?.addEventListener("input", () => {
     state.q = elQ.value;
-    // vid rensning: stäng selection + rensa tabell
     if (!shouldShowResultsNow()) {
       state.selected.clear();
       renderSelectionPanel();
@@ -543,6 +762,13 @@ export function initRecipesPage() {
 
   elType?.addEventListener("change", () => {
     state.type = elType.value;
+
+    applyModeUI();
+
+    // Stäng drawer när man byter typ (minskar förvirring)
+    closeDrawer();
+
+    renderSelectionPanel();
     render();
   });
 
@@ -584,11 +810,13 @@ export function initRecipesPage() {
   });
 
   bulkOpen?.addEventListener("click", () => {
+    if (isIngredientMode()) return;
     const first = state.selected.values().next().value;
     if (first) openDrawer(first.id);
   });
 
   bulkInactive?.addEventListener("click", () => {
+    if (isIngredientMode()) return;
     for (const r of state.selected.values()) {
       r.status = "inactive";
     }
@@ -598,7 +826,8 @@ export function initRecipesPage() {
   });
 
   // Boot
+  applyModeUI();
   setTab("overview");
-  render();              // visar 0 tills man skriver
+  render();
   renderSelectionPanel();
 }
