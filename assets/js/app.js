@@ -1,6 +1,6 @@
 /* ============================================================
    FIL: assets/js/app.js  (HEL FIL)
-   PATCH: AO-RECIPES-SEARCH-02 (FAS 1) — Fejk: articleNo + GTIN-13 + img + sök på allt
+   PATCH: AO-RECIPES-INGMODE-01 (FAS 1) — Ingrediensläge + fejk ingredienskatalog
    Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent i sidor)
    Notis: Den här filen används i nästa steg när vi flyttar inline-JS till page-moduler.
 ============================================================ */
@@ -13,8 +13,11 @@
  * OBS:
  * - Inga personuppgifter.
  * - Keys/stuktur hålls stabila så vi kan koppla UI utan att riva upp allt.
- * - NYTT (AO-RECIPES-SEARCH-02): ingrediens får fejkfält:
+ * - Ingrediens får fejkfält:
  *     articleNo (artikelnummer), gtin (GTIN-13), img (data-url SVG)
+ * - NYTT (AO-RECIPES-INGMODE-01):
+ *     db.ingredientsCatalog[] (frikopplad produktkatalog för sök i ingrediensläge)
+ *     export: buildIngredientsIndex(db) + listIngredients(db, {text})
  */
 
 function svgDataUrl(label = "Produkt") {
@@ -53,9 +56,9 @@ export function getMockDB() {
       size: "—",
       desc: "Kall sås till fisk och panering.",
       ingredients: [
-        { name: "Majonnäs", qty: "0.8", unit: "kg", price: "—", articleNo: "A-1001", gtin: "0731234567001", img: svgDataUrl("Majonnäs") },
-        { name: "Pickles", qty: "0.2", unit: "kg", price: "—", articleNo: "A-1002", gtin: "0731234567002", img: svgDataUrl("Pickles") },
-        { name: "Senap", qty: "0.05", unit: "kg", price: "—", articleNo: "A-1003", gtin: "0731234567003", img: svgDataUrl("Senap") }
+        { name: "Majonnäs", qty: "0.8", unit: "kg", price: "—", articleNo: "A-1001", gtin: "0731234567001", img: svgDataUrl("Majonnäs"), status: "active" },
+        { name: "Pickles", qty: "0.2", unit: "kg", price: "—", articleNo: "A-1002", gtin: "0731234567002", img: svgDataUrl("Pickles"), status: "active" },
+        { name: "Senap", qty: "0.05", unit: "kg", price: "—", articleNo: "A-1003", gtin: "0731234567003", img: svgDataUrl("Senap"), status: "active" }
       ],
       history: [{ date: "2026-02-20", change: "Pris uppdaterat (demo)" }]
     },
@@ -72,8 +75,8 @@ export function getMockDB() {
       size: "—",
       desc: "Grundtillbehör för husman.",
       ingredients: [
-        { name: "Potatis", qty: "10", unit: "kg", price: "—", articleNo: "A-2001", gtin: "0731234567011", img: svgDataUrl("Potatis") },
-        { name: "Salt", qty: "0.05", unit: "kg", price: "—", articleNo: "A-2002", gtin: "0731234567012", img: svgDataUrl("Salt") }
+        { name: "Potatis", qty: "10", unit: "kg", price: "—", articleNo: "A-2001", gtin: "0731234567011", img: svgDataUrl("Potatis"), status: "active" },
+        { name: "Salt", qty: "0.05", unit: "kg", price: "—", articleNo: "A-2002", gtin: "0731234567012", img: svgDataUrl("Salt"), status: "active" }
       ],
       history: [{ date: "2026-02-12", change: "Ny leverantör (demo)" }]
     },
@@ -90,9 +93,9 @@ export function getMockDB() {
       size: "—",
       desc: "Soppa som kan ingå som förrätt.",
       ingredients: [
-        { name: "Broccoli", qty: "2.0", unit: "kg", price: "—", articleNo: "A-3001", gtin: "0731234567021", img: svgDataUrl("Broccoli") },
-        { name: "Grädde", qty: "1.0", unit: "l", price: "—", articleNo: "A-3002", gtin: "0731234567022", img: svgDataUrl("Grädde") },
-        { name: "Buljong", qty: "0.1", unit: "kg", price: "—", articleNo: "A-3003", gtin: "0731234567023", img: svgDataUrl("Buljong") }
+        { name: "Broccoli", qty: "2.0", unit: "kg", price: "—", articleNo: "A-3001", gtin: "0731234567021", img: svgDataUrl("Broccoli"), status: "active" },
+        { name: "Grädde", qty: "1.0", unit: "l", price: "—", articleNo: "A-3002", gtin: "0731234567022", img: svgDataUrl("Grädde"), status: "active" },
+        { name: "Buljong", qty: "0.1", unit: "kg", price: "—", articleNo: "A-3003", gtin: "0731234567023", img: svgDataUrl("Buljong"), status: "active" }
       ],
       history: []
     },
@@ -109,9 +112,8 @@ export function getMockDB() {
       size: "—",
       desc: "Sås till fisk. Inaktiv i demo.",
       ingredients: [
-        { name: "Vitvin (matlagning)", qty: "0.3", unit: "l", price: "—", articleNo: "A-4001", gtin: "0731234567031", img: svgDataUrl("Vitvin") },
-        // Här gör vi ett tydligt test-exempel:
-        { name: "Ägg", qty: "10", unit: "st", price: "—", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg") }
+        { name: "Vitvin (matlagning)", qty: "0.3", unit: "l", price: "—", articleNo: "A-4001", gtin: "0731234567031", img: svgDataUrl("Vitvin"), status: "active" },
+        { name: "Ägg", qty: "10", unit: "st", price: "—", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg"), status: "active" }
       ],
       history: [{ date: "2026-02-01", change: "Markerad inaktiv (demo)" }]
     },
@@ -128,9 +130,9 @@ export function getMockDB() {
       size: "—",
       desc: "Standard-panering för fisk/kyckling.",
       ingredients: [
-        { name: "Ströbröd", qty: "1.0", unit: "kg", price: "—", articleNo: "A-5001", gtin: "0731234567041", img: svgDataUrl("Ströbröd") },
-        { name: "Ägg", qty: "12", unit: "st", price: "—", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg") },
-        { name: "Mjöl", qty: "0.6", unit: "kg", price: "—", articleNo: "A-5003", gtin: "0731234567043", img: svgDataUrl("Mjöl") }
+        { name: "Ströbröd", qty: "1.0", unit: "kg", price: "—", articleNo: "A-5001", gtin: "0731234567041", img: svgDataUrl("Ströbröd"), status: "active" },
+        { name: "Ägg", qty: "12", unit: "st", price: "—", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg"), status: "active" },
+        { name: "Mjöl", qty: "0.6", unit: "kg", price: "—", articleNo: "A-5003", gtin: "0731234567043", img: svgDataUrl("Mjöl"), status: "active" }
       ],
       history: []
     }
@@ -152,9 +154,8 @@ export function getMockDB() {
       desc: "Klassisk husman med tre komponenter.",
       subRecipeIds: ["sr5", "sr2", "sr1"],
       ingredients: [
-        // meal-level ingredienser (utöver underrecept)
-        { name: "Fiskpanetter", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9001", gtin: "0731234567091", img: svgDataUrl("Fisk") },
-        { name: "Citron", qty: "0.2", unit: "kg", price: "—", articleNo: "A-9002", gtin: "0731234567092", img: svgDataUrl("Citron") }
+        { name: "Fiskpanetter", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9001", gtin: "0731234567091", img: svgDataUrl("Fisk"), status: "active" },
+        { name: "Citron", qty: "0.2", unit: "kg", price: "—", articleNo: "A-9002", gtin: "0731234567092", img: svgDataUrl("Citron"), status: "active" }
       ],
       history: [{ date: "2026-02-20", change: "Leverantör uppdaterade pris (demo)" }]
     },
@@ -172,8 +173,8 @@ export function getMockDB() {
       desc: "Måltid med förrättssoppa.",
       subRecipeIds: ["sr3", "sr2"],
       ingredients: [
-        { name: "Kalvstek", qty: "3.0", unit: "kg", price: "—", articleNo: "A-9003", gtin: "0731234567093", img: svgDataUrl("Kalv") },
-        { name: "Grädde", qty: "1.0", unit: "l", price: "—", articleNo: "A-3002", gtin: "0731234567022", img: svgDataUrl("Grädde") }
+        { name: "Kalvstek", qty: "3.0", unit: "kg", price: "—", articleNo: "A-9003", gtin: "0731234567093", img: svgDataUrl("Kalv"), status: "active" },
+        { name: "Grädde", qty: "1.0", unit: "l", price: "—", articleNo: "A-3002", gtin: "0731234567022", img: svgDataUrl("Grädde"), status: "active" }
       ],
       history: [{ date: "2026-02-12", change: "Ny produkt upptäckt vid nattkörning (demo)" }]
     },
@@ -190,7 +191,9 @@ export function getMockDB() {
       size: "420 g",
       desc: "Inaktiv i demo (t.ex. utgående komponent).",
       subRecipeIds: ["sr4", "sr2"],
-      ingredients: [{ name: "Koljafilé", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9004", gtin: "0731234567094", img: svgDataUrl("Kolja") }],
+      ingredients: [
+        { name: "Koljafilé", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9004", gtin: "0731234567094", img: svgDataUrl("Kolja"), status: "active" }
+      ],
       history: [{ date: "2026-02-01", change: "Satt inaktiv p.g.a. komponent (demo)" }]
     },
     {
@@ -207,8 +210,8 @@ export function getMockDB() {
       desc: "Måltid med soppa + huvudrätt.",
       subRecipeIds: ["sr3"],
       ingredients: [
-        { name: "Nötstrimlor", qty: "2.0", unit: "kg", price: "—", articleNo: "A-9005", gtin: "0731234567095", img: svgDataUrl("Nöt") },
-        { name: "Ris", qty: "1.8", unit: "kg", price: "—", articleNo: "A-9006", gtin: "0731234567096", img: svgDataUrl("Ris") }
+        { name: "Nötstrimlor", qty: "2.0", unit: "kg", price: "—", articleNo: "A-9005", gtin: "0731234567095", img: svgDataUrl("Nöt"), status: "active" },
+        { name: "Ris", qty: "1.8", unit: "kg", price: "—", articleNo: "A-9006", gtin: "0731234567096", img: svgDataUrl("Ris"), status: "active" }
       ],
       history: []
     },
@@ -226,11 +229,30 @@ export function getMockDB() {
       desc: "Husman med tydlig såsprofil.",
       subRecipeIds: ["sr2"],
       ingredients: [
-        { name: "Kött", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9007", gtin: "0731234567097", img: svgDataUrl("Kött") },
-        { name: "Dill", qty: "0.08", unit: "kg", price: "—", articleNo: "A-9008", gtin: "0731234567098", img: svgDataUrl("Dill") }
+        { name: "Kött", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9007", gtin: "0731234567097", img: svgDataUrl("Kött"), status: "active" },
+        { name: "Dill", qty: "0.08", unit: "kg", price: "—", articleNo: "A-9008", gtin: "0731234567098", img: svgDataUrl("Dill"), status: "active" }
       ],
       history: []
     }
+  ];
+
+  // NYTT: Frikopplad “ingredienskatalog” (minst 12), inkl. några som INTE används i recept.
+  // Dessa är “sökbara” i ingrediensläge även om inget recept refererar dem ännu.
+  const ingredientsCatalog = [
+    { id: "ic01", name: "Ägg", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg"), status: "active" },
+    { id: "ic02", name: "Grädde", articleNo: "A-3002", gtin: "0731234567022", img: svgDataUrl("Grädde"), status: "active" },
+    { id: "ic03", name: "Buljong", articleNo: "A-3003", gtin: "0731234567023", img: svgDataUrl("Buljong"), status: "active" },
+    { id: "ic04", name: "Potatis", articleNo: "A-2001", gtin: "0731234567011", img: svgDataUrl("Potatis"), status: "active" },
+    { id: "ic05", name: "Senap", articleNo: "A-1003", gtin: "0731234567003", img: svgDataUrl("Senap"), status: "active" },
+    { id: "ic06", name: "Mjöl", articleNo: "A-5003", gtin: "0731234567043", img: svgDataUrl("Mjöl"), status: "active" },
+    { id: "ic07", name: "Ströbröd", articleNo: "A-5001", gtin: "0731234567041", img: svgDataUrl("Ströbröd"), status: "active" },
+    { id: "ic08", name: "Citron", articleNo: "A-9002", gtin: "0731234567092", img: svgDataUrl("Citron"), status: "active" },
+
+    // Catalog-only (inte i några recept ännu) — viktiga för “framtidssäkring”
+    { id: "ic09", name: "Tomatpuré", articleNo: "A-8001", gtin: "0731234567081", img: svgDataUrl("Tomat"), status: "active" },
+    { id: "ic10", name: "Olivolja", articleNo: "A-8002", gtin: "0731234567082", img: svgDataUrl("Olivolja"), status: "active" },
+    { id: "ic11", name: "Vitlök", articleNo: "A-8003", gtin: "0731234567083", img: svgDataUrl("Vitlök"), status: "active" },
+    { id: "ic12", name: "Sojasås", articleNo: "A-8004", gtin: "0731234567084", img: svgDataUrl("Soja"), status: "inactive" }
   ];
 
   // Samlad "recipes" (10 st totalt)
@@ -246,7 +268,8 @@ export function getMockDB() {
     recipes,
     byId,
     meals,
-    subs
+    subs,
+    ingredientsCatalog
   };
 }
 
@@ -269,11 +292,10 @@ function ingredientsToSearchBlob(ingredients) {
 }
 
 /**
- * Sök/filter i mock-DB
+ * Sök/filter i mock-DB (RECEPT)
  * @param {object} db - från getMockDB()
  * @param {object} q  - { text, type, status, cat }
  *
- * NYTT (AO-RECIPES-SEARCH-02):
  * - text matchar även ingrediens.name + ingrediens.articleNo + ingrediens.gtin
  * - för meal matchar vi även ingredienser i subrecepten (via subRecipeIds)
  */
@@ -305,6 +327,109 @@ export function queryRecipes(db, q = {}) {
     const hay = norm(`${base} ${ingBlob}`);
     return hay.includes(textQ);
   });
+}
+
+/**
+ * NYTT (AO-RECIPES-INGMODE-01)
+ * Bygg ett index av ingredienser:
+ * - slår ihop ingredienser från recept + subrecept + ingredientsCatalog
+ * - deduplicerar primärt på GTIN, fallback: name+articleNo
+ * - räknar “usedCount” (antal recept där ingrediensen förekommer, inkl. via subrecept för måltider)
+ *
+ * @returns {Map<string, object>} key -> { key, id, name, articleNo, gtin, img, status, usedCount }
+ */
+export function buildIngredientsIndex(db) {
+  const idx = new Map();
+
+  const mkKey = (it) => {
+    const gt = (it?.gtin ?? "").toString().trim();
+    if (gt) return `gtin:${gt}`;
+    const nm = norm(it?.name);
+    const an = (it?.articleNo ?? "").toString().trim();
+    return `na:${nm}|${an}`;
+  };
+
+  const upsert = (it, usedInRecipe) => {
+    if (!it) return;
+    const key = mkKey(it);
+    if (!key) return;
+
+    const curr = idx.get(key);
+    if (!curr) {
+      idx.set(key, {
+        key,
+        id: it.id ?? key,
+        name: it.name ?? "—",
+        articleNo: it.articleNo ?? "",
+        gtin: it.gtin ?? "",
+        img: it.img ?? "",
+        status: it.status ?? "",
+        usedCount: usedInRecipe ? 1 : 0
+      });
+      return;
+    }
+
+    // Behåll “bästa” data om catalog har mer info
+    if (!curr.articleNo && it.articleNo) curr.articleNo = it.articleNo;
+    if (!curr.gtin && it.gtin) curr.gtin = it.gtin;
+    if (!curr.img && it.img) curr.img = it.img;
+    if (!curr.status && it.status) curr.status = it.status;
+    if (usedInRecipe) curr.usedCount += 1;
+  };
+
+  // 1) Från catalog (usedCount=0 initialt)
+  const cat = Array.isArray(db?.ingredientsCatalog) ? db.ingredientsCatalog : [];
+  for (const it of cat) upsert(it, false);
+
+  // 2) Från recept + subrecept
+  const recipes = Array.isArray(db?.recipes) ? db.recipes : [];
+  for (const r of recipes) {
+    // ingredienser direkt på receptet
+    const ing = Array.isArray(r?.ingredients) ? r.ingredients : [];
+    for (const it of ing) upsert(it, true);
+
+    // om meal: räkna även subreceptens ingredienser som använda i denna måltid
+    if (r?.type === "meal" && Array.isArray(r?.subRecipeIds)) {
+      for (const sid of r.subRecipeIds) {
+        const sr = db?.byId?.get?.(sid);
+        const ing2 = Array.isArray(sr?.ingredients) ? sr.ingredients : [];
+        for (const it of ing2) upsert(it, true);
+      }
+    }
+  }
+
+  return idx;
+}
+
+/**
+ * NYTT (AO-RECIPES-INGMODE-01)
+ * Lista ingredienser för “Typ: Ingredienser” med enkel textsök.
+ *
+ * @param {object} db
+ * @param {object} q - { text }
+ * @returns {Array<object>} [{ key,id,name,articleNo,gtin,img,status,usedCount }]
+ */
+export function listIngredients(db, q = {}) {
+  const textQ = norm(q.text);
+  const idx = buildIngredientsIndex(db);
+  let arr = Array.from(idx.values());
+
+  if (textQ) {
+    arr = arr.filter((it) => {
+      const hay = norm(`${it.name ?? ""} ${it.articleNo ?? ""} ${it.gtin ?? ""}`);
+      return hay.includes(textQ);
+    });
+  }
+
+  // Lätt, stabil sort för UI: först mest använda, sedan namn
+  arr.sort((a, b) => {
+    const ua = Number(a.usedCount ?? 0);
+    const ub = Number(b.usedCount ?? 0);
+    if (ub !== ua) return ub - ua;
+    return norm(a.name).localeCompare(norm(b.name), "sv");
+  });
+
+  return arr;
 }
 
 /**
