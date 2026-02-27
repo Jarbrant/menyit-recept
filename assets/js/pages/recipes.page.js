@@ -1,8 +1,10 @@
 /* ============================================================
    FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   PATCH: AO-RECIPES-INGMODE-04 (FAS 1) — Visa rätt länk per drawer-typ
-   - Ingrediens: visa ENDAST "Byt ingrediens"
-   - Recept (meal/sub): visa INGEN ingrediens-länk-rad
+   PATCH: AO-RECIPES-ING-IMG-01 (FAS 1)
+   - Ingrediens-drawer: visa produktbild i header (om img finns)
+   - Recept-drawer: göm bild
+   - Behåller: Typ=Alla visar ingredienser + recept
+   - Behåller: Ingrediens visar endast "Byt ingrediens" (ingen Öppna måltid)
 ============================================================ */
 
 import {
@@ -67,6 +69,7 @@ export function initRecipesPage() {
   const bulkOpen = $("#bulkOpen");
 
   const db = getMockDB();
+
   const MIN_QUERY_CHARS = 1;
 
   const state = {
@@ -75,7 +78,7 @@ export function initRecipesPage() {
     status: "active",   // all | active | inactive
     cat: "all",
     compact: false,
-    selected: new Map(),
+    selected: new Map(),  // används bara för recept-rader
     activeId: null,
     activeIngKey: null,
   };
@@ -137,11 +140,80 @@ export function initRecipesPage() {
     if (box) box.textContent = "";
   }
 
+  function applyModeUI() {
+    if (elCat) {
+      elCat.disabled = isIngredientMode();
+      if (isIngredientMode()) elCat.value = "all";
+    }
+    if (isIngredientMode()) {
+      state.selected.clear();
+      renderSelectionPanel();
+      elSelPanel.classList.remove("open");
+    }
+  }
+
+  function badgeForStatus(statusValue) {
+    const tdStatus = document.createElement("td");
+    const b = document.createElement("span");
+    const st = (statusValue || "").toLowerCase();
+    const isOk = !st || st === "active";
+    b.className = "badge " + (isOk ? "badgeOk" : "badgeMuted");
+    b.textContent = isOk ? "Aktiv" : "Inaktiv";
+    tdStatus.appendChild(b);
+    return tdStatus;
+  }
+
   /* ============================================================
-     Actions-rad vid tabs
-     Regel (AO-RECIPES-INGMODE-04):
+     NYTT: Produktbild i drawerHeader (endast ingrediens)
+  ============================================================ */
+  function ensureDrawerImg() {
+    const header = elDrawer?.querySelector?.(".drawerHeader");
+    if (!header) return null;
+
+    let img = header.querySelector("#drawerProdImg");
+    if (img) return img;
+
+    img = document.createElement("img");
+    img.id = "drawerProdImg";
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.style.width = "56px";
+    img.style.height = "56px";
+    img.style.borderRadius = "14px";
+    img.style.objectFit = "cover";
+    img.style.border = "1px solid var(--border)";
+    img.style.background = "var(--card)";
+    img.style.marginRight = "12px";
+    img.style.display = "none";
+
+    // Placera först i header så den hamnar vänster om titelblocket
+    header.insertBefore(img, header.firstChild);
+    return img;
+  }
+
+  function showDrawerImg(src, altText) {
+    const img = ensureDrawerImg();
+    if (!img) return;
+    if (!src) {
+      img.style.display = "none";
+      img.removeAttribute("src");
+      img.alt = "";
+      return;
+    }
+    img.src = src;
+    img.alt = (altText || "").toString();
+    img.style.display = "";
+  }
+
+  function hideDrawerImg() {
+    showDrawerImg("", "");
+  }
+
+  /* ============================================================
+     Actions-rad vid tabs (Byt ingrediens)
      - Ingrediens: visa ENDAST "Byt ingrediens"
-     - Recept: visa INGENTING här (rad göms)
+     - Recept: göm raden
   ============================================================ */
   function ensureDrawerActionsRow() {
     const tabsBar = document.querySelector(".tabs");
@@ -176,11 +248,7 @@ export function initRecipesPage() {
 
     const swapBtn = document.querySelector("#swapIngBtn");
     const q = encodeURIComponent(it?.gtin || it?.articleNo || it?.name || "");
-
-    if (swapBtn) {
-      // Default: used-ingredients (kan ändras senare)
-      swapBtn.href = `./recipe-used-ingredients.html?q=${q}`;
-    }
+    if (swapBtn) swapBtn.href = `./recipe-used-ingredients.html?q=${q}`;
 
     row.style.display = "flex";
   }
@@ -188,29 +256,6 @@ export function initRecipesPage() {
   function hideDrawerActionsRow() {
     const row = document.querySelector("#drawerActionsRow");
     if (row) row.style.display = "none";
-  }
-
-  function applyModeUI() {
-    if (elCat) {
-      elCat.disabled = isIngredientMode();
-      if (isIngredientMode()) elCat.value = "all";
-    }
-    if (isIngredientMode()) {
-      state.selected.clear();
-      renderSelectionPanel();
-      elSelPanel.classList.remove("open");
-    }
-  }
-
-  function badgeForStatus(statusValue) {
-    const tdStatus = document.createElement("td");
-    const b = document.createElement("span");
-    const st = (statusValue || "").toLowerCase();
-    const isOk = !st || st === "active";
-    b.className = "badge " + (isOk ? "badgeOk" : "badgeMuted");
-    b.textContent = isOk ? "Aktiv" : "Inaktiv";
-    tdStatus.appendChild(b);
-    return tdStatus;
   }
 
   /* =========================
@@ -231,7 +276,10 @@ export function initRecipesPage() {
       ` • Används i ${Number(it.usedCount ?? 0)} recept`;
     elDSub.appendChild(sub);
 
-    // NYTT: visa ENDAST “Byt ingrediens”
+    // Visa produktbild i header (om finns)
+    showDrawerImg(it.img || "", it.name || "Produkt");
+
+    // Visa ENDAST “Byt ingrediens”
     showSwapOnlyForIngredient(it);
 
     saveNote.textContent = "";
@@ -250,10 +298,12 @@ export function initRecipesPage() {
     if (saveBtn) saveBtn.disabled = true;
     if (dupBtn) dupBtn.disabled = true;
 
+    // Klimatfält = —
     co2Badge.textContent = "—";
     energyBadge.textContent = "—";
     sizeBadge.textContent = "—";
 
+    // Ingrediens-tab: enkel info
     ingList.textContent = "";
     const box = document.createElement("div");
     box.className = "card";
@@ -268,7 +318,8 @@ export function initRecipesPage() {
     const line2 = document.createElement("div");
     line2.className = "muted small";
     line2.style.marginTop = "6px";
-    line2.textContent = `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
+    line2.textContent =
+      `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
     box.appendChild(line2);
 
     const line3 = document.createElement("div");
@@ -279,6 +330,7 @@ export function initRecipesPage() {
 
     ingList.appendChild(box);
 
+    // Historik placeholder
     histList.textContent = "—";
     hideMealViewTabIfAny();
 
@@ -436,10 +488,12 @@ export function initRecipesPage() {
     const r = db.byId.get(id);
     if (!r) return;
 
-    // Recept: göm “Byt ingrediens”-raden
+    // Recept: göm ingrediens-actions + göm produktbild
     hideDrawerActionsRow();
+    hideDrawerImg();
 
     state.activeIngKey = null;
+
     fName.disabled = false;
     fMealName.disabled = false;
     fStatus.disabled = false;
@@ -549,7 +603,7 @@ export function initRecipesPage() {
   }
 
   /* =========================
-     RENDER (samma som tidigare: ingrediens + recept i Typ=Alla)
+     RENDER (Typ=Alla => ingredienser + recept)
   ========================== */
 
   function filterIngredientsByStatus(arr) {
@@ -724,6 +778,7 @@ export function initRecipesPage() {
       elTbody.textContent = "";
       return;
     }
+
     if (isIngredientMode()) return renderIngredientOnly();
     if (state.type === "all") return renderMixedAll();
     return renderRecipesOnly();
