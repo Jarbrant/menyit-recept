@@ -1,10 +1,11 @@
 /* ============================================================
    FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   PATCH: AO-RECIPES-ING-IMG-01 (FAS 1)
-   - Ingrediens-drawer: visa produktbild i header (om img finns)
-   - Recept-drawer: göm bild
+   PATCH: AO-RECIPES-PRODCARD-02 (FAS 1)
+   - Ingrediens-drawer: produktkort i header (bild + titel + rader + badges)
+   - Recept-drawer: göm produktkort
    - Behåller: Typ=Alla visar ingredienser + recept
-   - Behåller: Ingrediens visar endast "Byt ingrediens" (ingen Öppna måltid)
+   - Behåller: Ingrediens visar endast "Byt ingrediens"
+   Policy: UI-only, XSS-safe (textContent), inga externa libs
 ============================================================ */
 
 import {
@@ -69,7 +70,6 @@ export function initRecipesPage() {
   const bulkOpen = $("#bulkOpen");
 
   const db = getMockDB();
-
   const MIN_QUERY_CHARS = 1;
 
   const state = {
@@ -164,17 +164,38 @@ export function initRecipesPage() {
   }
 
   /* ============================================================
-     NYTT: Produktbild i drawerHeader (endast ingrediens)
+     Produktkort i drawerHeader (endast ingrediens)
   ============================================================ */
-  function ensureDrawerImg() {
+
+  function ensureProdCard() {
     const header = elDrawer?.querySelector?.(".drawerHeader");
     if (!header) return null;
 
-    let img = header.querySelector("#drawerProdImg");
-    if (img) return img;
+    // om redan skapad
+    let wrap = header.querySelector("#prodCardWrap");
+    if (wrap) return wrap;
 
-    img = document.createElement("img");
-    img.id = "drawerProdImg";
+    // Gör header flex så kortet hamnar snyggt
+    header.style.display = "flex";
+    header.style.alignItems = "flex-start";
+    header.style.gap = "12px";
+
+    // Skapa wrapper
+    wrap = document.createElement("div");
+    wrap.id = "prodCardWrap";
+    wrap.style.display = "none";
+    wrap.style.width = "100%";
+    wrap.style.paddingRight = "6px";
+
+    // Rad: bild + textblock
+    const row = document.createElement("div");
+    row.id = "prodCardRow";
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "12px";
+
+    const img = document.createElement("img");
+    img.id = "prodCardImg";
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
@@ -184,30 +205,151 @@ export function initRecipesPage() {
     img.style.objectFit = "cover";
     img.style.border = "1px solid var(--border)";
     img.style.background = "var(--card)";
-    img.style.marginRight = "12px";
-    img.style.display = "none";
+    img.style.flex = "0 0 auto";
 
-    // Placera först i header så den hamnar vänster om titelblocket
-    header.insertBefore(img, header.firstChild);
-    return img;
+    const txt = document.createElement("div");
+    txt.id = "prodCardTxt";
+    txt.style.minWidth = "0";
+
+    const title = document.createElement("div");
+    title.id = "prodCardTitle";
+    title.style.fontWeight = "900";
+    title.style.fontSize = "16px";
+    title.style.lineHeight = "1.2";
+    title.style.whiteSpace = "nowrap";
+    title.style.overflow = "hidden";
+    title.style.textOverflow = "ellipsis";
+
+    const sub1 = document.createElement("div");
+    sub1.id = "prodCardSub1";
+    sub1.className = "muted small";
+    sub1.style.whiteSpace = "nowrap";
+    sub1.style.overflow = "hidden";
+    sub1.style.textOverflow = "ellipsis";
+
+    const sub2 = document.createElement("div");
+    sub2.id = "prodCardSub2";
+    sub2.className = "muted small";
+    sub2.style.whiteSpace = "nowrap";
+    sub2.style.overflow = "hidden";
+    sub2.style.textOverflow = "ellipsis";
+
+    txt.appendChild(title);
+    txt.appendChild(sub1);
+    txt.appendChild(sub2);
+
+    row.appendChild(img);
+    row.appendChild(txt);
+
+    // Badgesrad (CO2 + Anbud)
+    const badges = document.createElement("div");
+    badges.id = "prodCardBadges";
+    badges.style.display = "flex";
+    badges.style.gap = "8px";
+    badges.style.alignItems = "center";
+    badges.style.marginTop = "8px";
+    badges.style.flexWrap = "wrap";
+
+    const co2 = document.createElement("span");
+    co2.id = "prodCardCo2";
+    co2.className = "badge badgeMuted";
+
+    const offer = document.createElement("span");
+    offer.id = "prodCardOffer";
+    offer.className = "badge badgeOk";
+
+    badges.appendChild(co2);
+    badges.appendChild(offer);
+
+    wrap.appendChild(row);
+    wrap.appendChild(badges);
+
+    // Sätt wrappern först i header
+    header.insertBefore(wrap, header.firstChild);
+
+    // Flytta titelblock (dTitle/dSub) inuti wrap? NEJ – vi använder egna fält i prod card,
+    // så vi kan dölja dTitle/dSub visuellt när prodcard visas.
+    return wrap;
   }
 
-  function showDrawerImg(src, altText) {
-    const img = ensureDrawerImg();
-    if (!img) return;
-    if (!src) {
-      img.style.display = "none";
-      img.removeAttribute("src");
-      img.alt = "";
-      return;
+  function hideProdCard() {
+    const wrap = ensureProdCard();
+    if (!wrap) return;
+
+    wrap.style.display = "none";
+
+    // Återställ standardtitel
+    if (elDTitle) elDTitle.style.display = "";
+    if (elDSub) elDSub.style.display = "";
+  }
+
+  function showProdCard(it) {
+    const wrap = ensureProdCard();
+    if (!wrap) return;
+
+    const img = document.querySelector("#prodCardImg");
+    const title = document.querySelector("#prodCardTitle");
+    const sub1 = document.querySelector("#prodCardSub1");
+    const sub2 = document.querySelector("#prodCardSub2");
+    const co2 = document.querySelector("#prodCardCo2");
+    const offer = document.querySelector("#prodCardOffer");
+
+    // Bild
+    const src = it?.img || "";
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.alt = (it?.displayName || it?.name || "Produkt").toString();
+        img.style.display = "";
+      } else {
+        img.removeAttribute("src");
+        img.alt = "";
+        img.style.display = "none";
+      }
     }
-    img.src = src;
-    img.alt = (altText || "").toString();
-    img.style.display = "";
-  }
 
-  function hideDrawerImg() {
-    showDrawerImg("", "");
+    // Text (som i din bild)
+    const t = (it?.displayName || it?.name || "Produkt").toString();
+    const bline = (it?.brandLine || "").toString();
+    const art = (it?.articleNo || "").toString();
+    const cmp = (it?.comparePrice || "").toString();
+
+    if (title) title.textContent = t;
+
+    // Rad 1: brandline + Art.nr
+    const s1 = [bline, art ? `Art.nr. ${art}` : ""].filter(Boolean).join(", ");
+    if (sub1) sub1.textContent = s1 || "—";
+
+    // Rad 2: jämförpris
+    if (sub2) sub2.textContent = cmp || "Jmf. —";
+
+    // Badges
+    const co2Txt = (it?.co2PerKg || "").toString().trim();
+    if (co2) {
+      if (co2Txt) {
+        co2.textContent = co2Txt;
+        co2.style.display = "";
+      } else {
+        co2.textContent = "";
+        co2.style.display = "none";
+      }
+    }
+
+    const offerTxt = (it?.offerLabel || "").toString().trim();
+    if (offer) {
+      if (offerTxt) {
+        offer.textContent = offerTxt;
+        offer.style.display = "";
+      } else {
+        offer.textContent = "";
+        offer.style.display = "none";
+      }
+    }
+
+    // Visa prodcard och dölj standardtitel
+    wrap.style.display = "";
+    if (elDTitle) elDTitle.style.display = "none";
+    if (elDSub) elDSub.style.display = "none";
   }
 
   /* ============================================================
@@ -267,17 +409,8 @@ export function initRecipesPage() {
     state.activeId = null;
     state.activeIngKey = it.key || null;
 
-    elDTitle.textContent = it.name || "Ingrediens";
-    elDSub.textContent = "";
-    const sub = document.createElement("span");
-    sub.textContent =
-      `Ingrediens • ` +
-      (it.status && it.status.toLowerCase() === "inactive" ? "Inaktiv" : "Aktiv") +
-      ` • Används i ${Number(it.usedCount ?? 0)} recept`;
-    elDSub.appendChild(sub);
-
-    // Visa produktbild i header (om finns)
-    showDrawerImg(it.img || "", it.name || "Produkt");
+    // Produktkort i header (allt)
+    showProdCard(it);
 
     // Visa ENDAST “Byt ingrediens”
     showSwapOnlyForIngredient(it);
@@ -285,12 +418,12 @@ export function initRecipesPage() {
     saveNote.textContent = "";
     eName.style.display = "none";
 
+    // Behåll formfält (read-only) som innan
     fName.value = text(it.name);
     fMealName.value = text(it.articleNo ? `Artikel: ${it.articleNo}` : "Artikel: —");
     fStatus.value = (it.status && it.status.toLowerCase() === "inactive") ? "inactive" : "active";
     fDesc.value = text(it.gtin ? `GTIN: ${it.gtin}` : "GTIN: —");
 
-    // Lås i ingrediensläge
     fName.disabled = true;
     fMealName.disabled = true;
     fStatus.disabled = true;
@@ -303,34 +436,47 @@ export function initRecipesPage() {
     energyBadge.textContent = "—";
     sizeBadge.textContent = "—";
 
-    // Ingrediens-tab: enkel info
+    // Ingrediens-tab: enkel info + “produktkort-data”
     ingList.textContent = "";
     const box = document.createElement("div");
     box.className = "card";
     box.style.padding = "12px";
     box.style.boxShadow = "none";
 
-    const line1 = document.createElement("div");
-    line1.style.fontWeight = "900";
-    line1.textContent = "Produktdata (demo)";
-    box.appendChild(line1);
+    const h = document.createElement("div");
+    h.style.fontWeight = "900";
+    h.textContent = "Produktdata (demo)";
+    box.appendChild(h);
 
-    const line2 = document.createElement("div");
-    line2.className = "muted small";
-    line2.style.marginTop = "6px";
-    line2.textContent =
-      `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
-    box.appendChild(line2);
+    const l1 = document.createElement("div");
+    l1.className = "muted small";
+    l1.style.marginTop = "6px";
+    l1.textContent = `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
+    box.appendChild(l1);
 
-    const line3 = document.createElement("div");
-    line3.className = "muted small";
-    line3.style.marginTop = "6px";
-    line3.textContent = `Används i ${Number(it.usedCount ?? 0)} recept.`;
-    box.appendChild(line3);
+    const l2 = document.createElement("div");
+    l2.className = "muted small";
+    l2.style.marginTop = "6px";
+    l2.textContent = `Används i ${Number(it.usedCount ?? 0)} recept.`;
+    box.appendChild(l2);
+
+    // Visa extra rader om finns
+    const extra = [];
+    if (it.brandLine) extra.push(`Info: ${it.brandLine}`);
+    if (it.comparePrice) extra.push(it.comparePrice);
+    if (it.co2PerKg) extra.push(it.co2PerKg);
+    if (it.offerLabel) extra.push(it.offerLabel);
+
+    if (extra.length) {
+      const l3 = document.createElement("div");
+      l3.className = "muted small";
+      l3.style.marginTop = "6px";
+      l3.textContent = extra.join(" • ");
+      box.appendChild(l3);
+    }
 
     ingList.appendChild(box);
 
-    // Historik placeholder
     histList.textContent = "—";
     hideMealViewTabIfAny();
 
@@ -488,9 +634,9 @@ export function initRecipesPage() {
     const r = db.byId.get(id);
     if (!r) return;
 
-    // Recept: göm ingrediens-actions + göm produktbild
+    // Recept: göm ingrediens-actions + göm produktkort
     hideDrawerActionsRow();
-    hideDrawerImg();
+    hideProdCard();
 
     state.activeIngKey = null;
 
