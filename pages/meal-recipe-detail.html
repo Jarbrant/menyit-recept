@@ -1,15 +1,15 @@
 <!-- ============================================================
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
-     Sida: Måltidsrecept detalj (SUPERSIDA v1)
+     Sida: Måltidsrecept detalj (SUPERSIDA v1.1 – STÄDAD)
 
-     PATCH: AO-RECIPES-SUPERPAGE-01 (FAS 1)
-     Mål:
-       - Supersnygg detaljsida som använder full fejkmodell (assets/js/app.js)
-       - Endast underrecept från meal.subRecipeIds visas (ingen “extra” sektion om tom)
-       - Portioner skalar ingrediensmängder (demo-skalning bas=25 portioner)
-       - Tillagning per delrecept + Översikt (läser från meal.instructions / sub.instructions)
-       - Drawer visar CO₂ + Näring + Historik (läser från meal.co2 / meal.nutrition / meal.history / meal.supplierUpdatedAt)
-       - Produktkort-mini (popover) när man klickar på ingrediensnamn (displayName/brandLine/comparePrice/offerLabel/co2PerKgLabel)
+     PATCH: AO-RECIPES-SUPERPAGE-02 (FAS 1)
+     Ändringar (städ/rensa enligt markeringar):
+       - Bort: Leverantör-pill i hero (onödig rad)
+       - Bort: stor sökrad i hero (flyttad till vänsterpanelen för att minska höjd)
+       - Bort: “SUPERSIDA”-badge i sticky actions (onödig)
+       - Bort: extra rubrik-rader/texter i vänsterpanel (“Visar exakt…”, “Ingår i måltiden:”)
+       - Bort: Expandera alla / Fäll ihop (onödig rad) — behåller “Visa tillagning”
+       - Färre rader totalt, mer kompakt layout
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -73,7 +73,6 @@
             <li>Underrecept kommer exakt från <span class="kbd">subRecipeIds</span>.</li>
             <li>Portioner skalar ingrediensmängder (demo-basis: 25).</li>
             <li>Klicka ingrediensnamn för produktkort.</li>
-            <li>Klimat & näring visar CO₂ + näring + historik (fejkmodell).</li>
           </ul>
         </div>
       </div>
@@ -82,7 +81,7 @@
 
   <main class="container">
 
-    <!-- HERO -->
+    <!-- HERO (städad, utan sök + utan extra pill) -->
     <section class="hero" aria-label="Receptöversikt">
       <div class="flexBetween" style="align-items:flex-start;">
         <div style="min-width:240px;">
@@ -94,27 +93,14 @@
           <span class="badge badgeMuted" id="pillStatus">—</span>
           <span class="badge badgeMuted" id="pillSubs">—</span>
           <span class="badge badgeMuted" id="pillSize">—</span>
-          <span class="badge badgeMuted" id="pillSupplier">—</span>
         </div>
-      </div>
-
-      <!-- Sök -->
-      <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
-        <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
-        </svg>
-        <input id="q" class="searchInput" type="search" placeholder="Sök i ingredienser…" autocomplete="off" />
-        <span class="kbd" title="Snabbtangent">/</span>
       </div>
     </section>
 
-    <!-- Sticky actions -->
+    <!-- Sticky actions (städad: inga extra badges) -->
     <div class="card mt16" style="padding:12px 14px; position:sticky; top:64px; z-index:10;">
       <div class="flexBetween" style="align-items:flex-start;">
-        <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
-          <span class="badge badgeMuted">SUPERSIDA</span>
-          <span class="muted small" id="metaLine">—</span>
-        </div>
+        <div class="muted small" id="metaLine">—</div>
 
         <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
           <div class="chip">
@@ -153,37 +139,38 @@
 
     <div class="grid grid2 mt16">
 
-      <!-- LEFT: Underrecept cards -->
+      <!-- LEFT -->
       <section class="card" style="padding:18px;" aria-label="Underrecept & ingredienser">
         <div class="flexBetween" style="align-items:flex-start; gap:12px;">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:900;">Underrecept</h2>
-            <div class="muted small">Visar exakt de underrecept som måltiden pekar på.</div>
           </div>
 
           <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
-            <button class="btn" id="expandAllBtn" type="button">Expandera alla</button>
-            <button class="btn" id="collapseAllBtn" type="button">Fäll ihop</button>
             <button class="btn" id="goCooking" type="button">Visa tillagning</button>
           </div>
         </div>
 
-        <hr class="hr" />
-
-        <div class="muted small" id="subsHint">—</div>
-        <div id="subsWrap" class="mt12"></div>
-
-        <div class="muted small mt12">
-          Tips: klicka på ingrediensnamn för produktkort.
+        <!-- Kompakt sök (flyttad hit från hero) -->
+        <div class="mt12" style="display:flex; align-items:center; gap:10px;">
+          <div class="searchWrap" style="margin:0; width:100%; padding:10px 12px;">
+            <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+            </svg>
+            <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens…" autocomplete="off" />
+            <span class="kbd" title="Snabbtangent">/</span>
+          </div>
         </div>
+
+        <div id="subsWrap" class="mt12"></div>
       </section>
 
-      <!-- RIGHT: Cooking -->
+      <!-- RIGHT -->
       <aside class="card" style="padding:18px;" aria-label="Tillagning">
         <div class="flexBetween" style="align-items:flex-start; gap:12px;">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:900;">Tillagning</h2>
-            <p class="muted small" style="margin-top:6px;">Översikt + per delrecept (läser från fejkmodellens instructions).</p>
+            <p class="muted small" style="margin-top:6px;">Översikt + per delrecept.</p>
           </div>
           <span class="badge badgeMuted" id="cookBadge">—</span>
         </div>
@@ -298,7 +285,7 @@
           <div class="flexBetween">
             <div>
               <div style="font-weight:900;">CO₂e totalt</div>
-              <div class="muted small">Måltid (fejkmodell)</div>
+              <div class="muted small">Måltid</div>
             </div>
             <span class="badge badgeMuted" id="co2Total">—</span>
           </div>
@@ -365,9 +352,6 @@
 
     const $ = (sel) => document.querySelector(sel);
 
-    /* -----------------------------
-       Small helpers (XSS-safe)
-    ----------------------------- */
     function safeStr(v){ return (v === null || v === undefined) ? '' : String(v); }
     function uid(prefix){ return prefix + '_' + Math.random().toString(16).slice(2); }
     function clampNum(n, a, b){ return Math.max(a, Math.min(b, n)); }
@@ -381,11 +365,6 @@
       if (!Number.isFinite(x)) return '—';
       const v = Math.round(x * 100) / 100;
       return `${v.toFixed(2)} kg`;
-    }
-    function fmtG(x){
-      if (!Number.isFinite(x)) return '—';
-      const v = Math.round(x);
-      return `${v} g`;
     }
     function fmtKcal(x){
       if (!Number.isFinite(x)) return '—';
@@ -403,11 +382,7 @@
       return raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     }
 
-    function setText(el, v){ el.textContent = safeStr(v); }
-
-    /* -----------------------------
-       DOM hooks
-    ----------------------------- */
+    // DOM hooks
     const elBack = $('#backBtn');
 
     const helpBtn = $('#helpBtn');
@@ -426,15 +401,9 @@
     const pillStatus = $('#pillStatus');
     const pillSubs = $('#pillSubs');
     const pillSize = $('#pillSize');
-    const pillSupplier = $('#pillSupplier');
 
     const elQ = $('#q');
-    const subsHint = $('#subsHint');
     const subsWrap = $('#subsWrap');
-
-    const expandAllBtn = $('#expandAllBtn');
-    const collapseAllBtn = $('#collapseAllBtn');
-    const goCooking = $('#goCooking');
 
     const portionSel = $('#portionSel');
     const sizeSel = $('#sizeSel');
@@ -442,7 +411,6 @@
     const saveNote = $('#saveNote');
     const metaLine = $('#metaLine');
 
-    // Cooking
     const cookTabs = $('#cookTabs');
     const cookBadge = $('#cookBadge');
     const cookHint = $('#cookHint');
@@ -454,8 +422,8 @@
     const cookSaveNote = $('#cookSaveNote');
     const saveCooking = $('#saveCooking');
     const cookStepsCount = $('#cookStepsCount');
+    const goCooking = $('#goCooking');
 
-    // Drawer
     const drawerTabs = Array.from(document.querySelectorAll('.drawer .tab'));
     const tabViews = {
       climate: $('#tab_climate'),
@@ -478,10 +446,8 @@
     const histBox = $('#histBox');
     const dSub = $('#dSub');
 
-    // Product popover
     const prodPop = $('#prodPop');
     const ppClose = $('#ppClose');
-    const ppTitle = $('#ppTitle');
     const ppImg = $('#ppImg');
     const ppDisplayName = $('#ppDisplayName');
     const ppBrandLine = $('#ppBrandLine');
@@ -493,9 +459,7 @@
     const ppOffer = $('#ppOffer');
     const ppSupplier = $('#ppSupplier');
 
-    /* -----------------------------
-       Help popover
-    ----------------------------- */
+    // Help popover
     let helpOpen = false;
     function openHelp(){
       helpOpen = true;
@@ -519,16 +483,13 @@
     helpBtn.addEventListener('click', () => (helpOpen ? closeHelp() : openHelp()));
     helpClose.addEventListener('click', closeHelp);
 
-    /* -----------------------------
-       Drawer tabs + open/close
-    ----------------------------- */
+    // Drawer
     function setDrawerTab(key){
       for (const [k, el] of Object.entries(tabViews)){
         el.style.display = (k === key) ? '' : 'none';
       }
       drawerTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
     }
-
     function openDrawer(){
       refreshDrawer();
       elOverlay.classList.add('open');
@@ -540,7 +501,6 @@
       elDrawer.classList.remove('open');
       elOverlay.setAttribute('aria-hidden', 'true');
     }
-
     elClimateBtn.addEventListener('click', () => {
       openDrawer();
       setDrawerTab('climate');
@@ -549,50 +509,41 @@
     elDClose.addEventListener('click', closeDrawer);
     drawerTabs.forEach(t => t.addEventListener('click', () => setDrawerTab(t.dataset.tab)));
 
-    /* -----------------------------
-       Product popover
-    ----------------------------- */
-    let prodOpen = false;
+    // Product pop
     function closeProdPop(){
-      prodOpen = false;
       prodPop.style.display = 'none';
       prodPop.classList.remove('open');
     }
     function openProdPop(anchorEl, ingredient){
       const it = ingredient || {};
-
-      setText(ppTitle, 'Produktkort');
       ppImg.src = safeStr(it.img || '');
       ppImg.alt = safeStr(it.name || '');
 
-      setText(ppDisplayName, it.displayName || it.name || '—');
-      setText(ppBrandLine, it.brandLine || (it.supplier?.supplierName ? it.supplier.supplierName : '—'));
+      ppDisplayName.textContent = safeStr(it.displayName || it.name || '—');
+      ppBrandLine.textContent = safeStr(it.brandLine || (it.supplier?.supplierName ? it.supplier.supplierName : '—'));
 
-      setText(ppArticle, it.articleNo || '—');
-      setText(ppGtin, it.gtin || '—');
-      setText(ppCompare, it.comparePrice || '—');
-      setText(ppCo2, it.co2PerKgLabel || (it.co2ePerKg ? `${it.co2ePerKg} kg CO₂e/kg` : '—'));
+      ppArticle.textContent = safeStr(it.articleNo || '—');
+      ppGtin.textContent = safeStr(it.gtin || '—');
+      ppCompare.textContent = safeStr(it.comparePrice || '—');
+      ppCo2.textContent = safeStr(it.co2PerKgLabel || (it.co2ePerKg ? `${it.co2ePerKg} kg CO₂e/kg` : '—'));
 
       const offer = safeStr(it.offerLabel || '').trim();
       if (offer){
         ppOfferWrap.style.display = '';
-        setText(ppOffer, offer);
+        ppOffer.textContent = offer;
       } else {
         ppOfferWrap.style.display = 'none';
       }
 
       const supName = it?.supplier?.supplierName ? it.supplier.supplierName : '—';
       const supUpd = it?.supplierUpdatedAt ? it.supplierUpdatedAt : '—';
-      setText(ppSupplier, `Leverantör: ${supName} • Uppdaterad: ${supUpd}`);
+      ppSupplier.textContent = `Leverantör: ${supName} • Uppdaterad: ${supUpd}`;
 
-      // position near click (fixed panel style)
       const r = anchorEl.getBoundingClientRect();
       const top = clampNum(Math.round(r.bottom + 10), 86, window.innerHeight - 220);
-      const right = 18;
       prodPop.style.top = top + 'px';
-      prodPop.style.right = right + 'px';
+      prodPop.style.right = '18px';
 
-      prodOpen = true;
       prodPop.style.display = '';
       prodPop.classList.add('open');
 
@@ -608,9 +559,7 @@
     }
     ppClose.addEventListener('click', closeProdPop);
 
-    /* -----------------------------
-       Load data
-    ----------------------------- */
+    // Load data
     const db = getMockDB();
     const params = new URLSearchParams(location.search);
     const id = params.get('id') || db.meals[0];
@@ -619,7 +568,6 @@
     const activeMeal = (meal && meal.type === 'meal') ? meal : db.byId.get(db.meals[0]);
     const expanded = expandMeal(db, activeMeal.id);
 
-    // Demo: baseline portions for scaling
     const BASE_PORTIONS = 25;
 
     const state = {
@@ -628,47 +576,29 @@
       q: '',
       portions: parseInt(portionSel.value, 10) || BASE_PORTIONS,
       size: sizeSel.value,
-
-      // Ingredient rows per subId (edit in session)
       rowsBySub: {},
-
-      // collapse state per subId
-      openBySub: {},
-
-      // cooking: "meal" + each subId
-      cook: {
-        activeKey: 'meal',
-        byKey: {} // { key: { title, desc, stepsText, note } }
-      }
+      cook: { activeKey: 'meal', byKey: {} }
     };
 
     function initFromModel(){
-      // rows per sub
       const rb = {};
-      const ob = {};
-
       for (const s of state.subs){
         const ing = Array.isArray(s.ingredients) ? s.ingredients : [];
         rb[s.id] = ing.map((it) => {
           const qtyNum = toNumMaybe(it.qty);
           return {
             id: uid('row'),
-            // keep original full ingredient object for product popover
             src: it,
             name: safeStr(it.name),
             unit: safeStr(it.unit || 'g'),
-            baseQtyNum: qtyNum,          // numeric or null
-            baseQtyRaw: safeStr(it.qty), // original string
-            bestBefore: ''               // UI-only demo
+            baseQtyNum: qtyNum,
+            baseQtyRaw: safeStr(it.qty),
+            bestBefore: ''
           };
         });
-        ob[s.id] = true; // start expanded
       }
-
       state.rowsBySub = rb;
-      state.openBySub = ob;
 
-      // cook from model instructions
       const mIns = state.meal.instructions || {};
       state.cook.byKey['meal'] = {
         title: safeStr(mIns.title || state.meal.name),
@@ -688,70 +618,43 @@
       }
     }
 
-    /* -----------------------------
-       Render header
-    ----------------------------- */
     function renderHeader(){
-      setText(elH1, state.meal.name || '—');
-      setText(elSubtitle, state.meal.name || '—');
-      setText(elHSub, state.meal.desc || 'Arbetsyta för måltiden.');
+      elH1.textContent = safeStr(state.meal.name || '—');
+      elSubtitle.textContent = safeStr(state.meal.name || '—');
+      elHSub.textContent = safeStr(state.meal.desc || 'Arbetsyta för måltiden.');
 
-      // status pill
       const isActive = state.meal.status === 'active';
-      setText(pillStatus, isActive ? 'Aktiv' : 'Inaktiv');
+      pillStatus.textContent = isActive ? 'Aktiv' : 'Inaktiv';
       pillStatus.className = 'badge ' + (isActive ? 'badgeOk' : 'badgeMuted');
 
-      setText(pillSubs, `${state.subs.length} underrecept`);
-      setText(pillSize, state.meal.size || state.size || '—');
-
-      const supName = state.meal?.supplier?.supplierName || '—';
-      const supUpd = state.meal.supplierUpdatedAt || '—';
-      setText(pillSupplier, `Leverantör: ${supName} • ${supUpd}`);
+      pillSubs.textContent = `${state.subs.length} underrecept`;
+      pillSize.textContent = safeStr(state.meal.size || state.size || '—');
 
       const upd = state.meal.updatedAt || '—';
       const price = state.meal.price || '—';
-      setText(metaLine, `Uppdaterad: ${upd} • Pris: ${price}`);
-
-      setText(subsHint, state.subs.length ? `Ingår i måltiden:` : 'Inga underrecept kopplade.');
+      metaLine.textContent = `Uppdaterad: ${upd} • Pris: ${price}`;
     }
 
-    /* -----------------------------
-       Scaling
-    ----------------------------- */
     function scaleQty(row){
       const mult = (state.portions || BASE_PORTIONS) / BASE_PORTIONS;
-      if (row.baseQtyNum === null || row.baseQtyNum === undefined) {
-        // fallback: leave original string
-        return row.baseQtyRaw;
-      }
-      const scaled = row.baseQtyNum * mult;
+      if (row.baseQtyNum === null || row.baseQtyNum === undefined) return row.baseQtyRaw;
 
-      // small formatting rules
-      if (row.unit === 'st') {
-        return String(Math.max(0, Math.round(scaled)));
-      }
+      const scaled = row.baseQtyNum * mult;
+      if (row.unit === 'st') return String(Math.max(0, Math.round(scaled)));
       if (row.unit === 'kg' || row.unit === 'l') {
         const v = Math.round(scaled * 100) / 100;
         return v.toFixed(2).replace('.', ',');
       }
-      // g/dl/others
       const v = Math.round(scaled * 10) / 10;
       return String(v).replace('.', ',');
     }
 
-    /* -----------------------------
-       Filter
-    ----------------------------- */
     function matchesQ(row){
       const q = state.q.trim().toLowerCase();
       if (!q) return true;
-      const hay = `${row.name} ${row.unit}`.toLowerCase();
-      return hay.includes(q);
+      return (`${row.name} ${row.unit}`).toLowerCase().includes(q);
     }
 
-    /* -----------------------------
-       Underrecept cards
-    ----------------------------- */
     function renderSubs(){
       subsWrap.textContent = '';
 
@@ -764,7 +667,6 @@
         card.style.borderRadius = '16px';
         card.style.marginTop = '12px';
 
-        // header row
         const head = document.createElement('div');
         head.className = 'flexBetween';
         head.style.alignItems = 'flex-start';
@@ -797,14 +699,8 @@
         const price = s.price || '—';
         meta.textContent = `Uppdaterad: ${supUpd} • Pris: ${price}`;
 
-        const desc = document.createElement('div');
-        desc.className = 'muted small';
-        desc.style.marginTop = '6px';
-        desc.textContent = s.desc || '—';
-
         left.appendChild(titleRow);
         left.appendChild(meta);
-        left.appendChild(desc);
 
         const right = document.createElement('div');
         right.style.display = 'flex';
@@ -817,189 +713,140 @@
         btnCook.type = 'button';
         btnCook.textContent = 'Tillagning';
         btnCook.addEventListener('click', () => setCookTab(s.id));
-
-        const btnToggle = document.createElement('button');
-        btnToggle.className = 'btn';
-        btnToggle.type = 'button';
-        btnToggle.textContent = state.openBySub[s.id] ? 'Fäll ihop' : 'Expandera';
-        btnToggle.addEventListener('click', () => {
-          state.openBySub[s.id] = !state.openBySub[s.id];
-          renderSubs();
-        });
-
         right.appendChild(btnCook);
-        right.appendChild(btnToggle);
 
         head.appendChild(left);
         head.appendChild(right);
         card.appendChild(head);
 
-        if (state.openBySub[s.id]) {
-          // stats row (CO2 + kcal if available)
-          const statRow = document.createElement('div');
-          statRow.className = 'chipsRow';
-          statRow.style.marginTop = '12px';
+        const wrap = document.createElement('div');
+        wrap.className = 'card mt12 tableCard';
+        wrap.style.boxShadow = 'none';
+        wrap.style.overflow = 'hidden';
 
-          const co2 = s.co2 || {};
-          const nutr = s.nutrition || {};
-          const kcal = nutr?.perPortion?.kcal;
+        const table = document.createElement('table');
+        table.className = 'table';
+        table.setAttribute('aria-label', `Ingredienser för ${s.name}`);
 
-          const b1 = document.createElement('span');
-          b1.className = 'badge badgeMuted';
-          b1.textContent = `CO₂/portion: ${Number.isFinite(co2.perPortionKg) ? fmtKg(co2.perPortionKg) : '—'}`;
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
 
-          const b2 = document.createElement('span');
-          b2.className = 'badge badgeMuted';
-          b2.textContent = `CO₂ totalt: ${Number.isFinite(co2.totalKg) ? fmtKg(co2.totalKg) : '—'}`;
+        const cols = [
+          { label: 'Ingrediens', w: '44%' },
+          { label: 'Mängd', w: '16%' },
+          { label: 'Enhet', w: '14%' },
+          { label: 'Bäst före', w: '20%' },
+          { label: '—', w: '6%', actions: true },
+        ];
 
-          const b3 = document.createElement('span');
-          b3.className = 'badge badgeMuted';
-          b3.textContent = `Kcal/portion: ${Number.isFinite(kcal) ? fmtKcal(kcal) : '—'}`;
+        cols.forEach(c => {
+          const th = document.createElement('th');
+          th.textContent = c.label;
+          th.style.width = c.w;
+          if (c.actions) th.className = 'actions';
+          trh.appendChild(th);
+        });
 
-          statRow.appendChild(b1);
-          statRow.appendChild(b2);
-          statRow.appendChild(b3);
-          card.appendChild(statRow);
+        thead.appendChild(trh);
 
-          // table
-          const wrap = document.createElement('div');
-          wrap.className = 'card mt12 tableCard';
-          wrap.style.boxShadow = 'none';
-          wrap.style.overflow = 'hidden';
+        const tbody = document.createElement('tbody');
+        const rows = (state.rowsBySub[s.id] || []).filter(matchesQ);
 
-          const table = document.createElement('table');
-          table.className = 'table';
-          table.setAttribute('aria-label', `Ingredienser för ${s.name}`);
+        for (const r of rows){
+          const tr = document.createElement('tr');
 
-          const thead = document.createElement('thead');
-          const trh = document.createElement('tr');
+          const tdName = document.createElement('td');
+          const nameBtn = document.createElement('button');
+          nameBtn.type = 'button';
+          nameBtn.className = 'btn btnGhost';
+          nameBtn.style.padding = '6px 8px';
+          nameBtn.style.borderRadius = '10px';
+          nameBtn.style.fontWeight = '900';
+          nameBtn.style.textAlign = 'left';
+          nameBtn.style.width = '100%';
+          nameBtn.textContent = r.name;
+          nameBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openProdPop(nameBtn, r.src || {});
+          });
+          tdName.appendChild(nameBtn);
 
-          const cols = [
-            { label: 'Ingrediens', w: '44%' },
-            { label: 'Mängd', w: '16%' },
-            { label: 'Enhet', w: '14%' },
-            { label: 'Bäst före', w: '20%' },
-            { label: '—', w: '6%', actions: true },
-          ];
+          const tdQty = document.createElement('td');
+          const qty = document.createElement('input');
+          qty.className = 'input';
+          qty.value = scaleQty(r);
+          qty.addEventListener('input', () => {
+            const v = toNumMaybe(qty.value);
+            if (v === null) {
+              r.baseQtyNum = null;
+              r.baseQtyRaw = qty.value;
+            } else {
+              const mult = (state.portions || BASE_PORTIONS) / BASE_PORTIONS;
+              const base = mult ? (v / mult) : v;
+              r.baseQtyNum = base;
+              r.baseQtyRaw = qty.value;
+            }
+          });
+          tdQty.appendChild(qty);
 
-          cols.forEach(c => {
-            const th = document.createElement('th');
-            th.textContent = c.label;
-            th.style.width = c.w;
-            if (c.actions) th.className = 'actions';
-            trh.appendChild(th);
+          const tdUnit = document.createElement('td');
+          const unit = document.createElement('select');
+          ['g','kg','l','dl','st'].forEach(u => {
+            const o = document.createElement('option');
+            o.value = u;
+            o.textContent = u;
+            if (r.unit === u) o.selected = true;
+            unit.appendChild(o);
+          });
+          unit.addEventListener('change', () => {
+            r.unit = unit.value;
+            renderSubs();
+          });
+          tdUnit.appendChild(unit);
+
+          const tdBB = document.createElement('td');
+          const bb = document.createElement('input');
+          bb.className = 'input';
+          bb.type = 'date';
+          bb.value = r.bestBefore;
+          bb.addEventListener('change', () => r.bestBefore = bb.value);
+          tdBB.appendChild(bb);
+
+          const tdAct = document.createElement('td');
+          tdAct.className = 'actions';
+
+          const del = document.createElement('button');
+          del.className = 'iconBtn';
+          del.type = 'button';
+          del.title = 'Ta bort';
+          del.textContent = '🗑';
+          del.addEventListener('click', () => {
+            state.rowsBySub[s.id] = (state.rowsBySub[s.id] || []).filter(x => x !== r);
+            renderSubs();
           });
 
-          thead.appendChild(trh);
+          tdAct.appendChild(del);
 
-          const tbody = document.createElement('tbody');
-          const rows = (state.rowsBySub[s.id] || []).filter(matchesQ);
+          tr.appendChild(tdName);
+          tr.appendChild(tdQty);
+          tr.appendChild(tdUnit);
+          tr.appendChild(tdBB);
+          tr.appendChild(tdAct);
 
-          for (const r of rows){
-            const tr = document.createElement('tr');
-
-            const tdName = document.createElement('td');
-            const nameBtn = document.createElement('button');
-            nameBtn.type = 'button';
-            nameBtn.className = 'btn btnGhost';
-            nameBtn.style.padding = '6px 8px';
-            nameBtn.style.borderRadius = '10px';
-            nameBtn.style.fontWeight = '900';
-            nameBtn.style.textAlign = 'left';
-            nameBtn.style.width = '100%';
-            nameBtn.textContent = r.name;
-            nameBtn.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openProdPop(nameBtn, r.src || {});
-            });
-            tdName.appendChild(nameBtn);
-
-            const tdQty = document.createElement('td');
-            const qty = document.createElement('input');
-            qty.className = 'input';
-            qty.value = scaleQty(r);
-            qty.addEventListener('input', () => {
-              // edit becomes new base (relative to BASE_PORTIONS) to keep scaling stable
-              const v = toNumMaybe(qty.value);
-              if (v === null) {
-                r.baseQtyNum = null;
-                r.baseQtyRaw = qty.value;
-              } else {
-                const mult = (state.portions || BASE_PORTIONS) / BASE_PORTIONS;
-                const base = mult ? (v / mult) : v;
-                r.baseQtyNum = base;
-                r.baseQtyRaw = qty.value;
-              }
-            });
-            tdQty.appendChild(qty);
-
-            const tdUnit = document.createElement('td');
-            const unit = document.createElement('select');
-            ['g','kg','l','dl','st'].forEach(u => {
-              const o = document.createElement('option');
-              o.value = u;
-              o.textContent = u;
-              if (r.unit === u) o.selected = true;
-              unit.appendChild(o);
-            });
-            unit.addEventListener('change', () => {
-              r.unit = unit.value;
-              renderSubs();
-            });
-            tdUnit.appendChild(unit);
-
-            const tdBB = document.createElement('td');
-            const bb = document.createElement('input');
-            bb.className = 'input';
-            bb.type = 'date';
-            bb.value = r.bestBefore;
-            bb.addEventListener('change', () => r.bestBefore = bb.value);
-            tdBB.appendChild(bb);
-
-            const tdAct = document.createElement('td');
-            tdAct.className = 'actions';
-
-            const del = document.createElement('button');
-            del.className = 'iconBtn';
-            del.type = 'button';
-            del.title = 'Ta bort';
-            del.textContent = '🗑';
-            del.addEventListener('click', () => {
-              state.rowsBySub[s.id] = (state.rowsBySub[s.id] || []).filter(x => x !== r);
-              renderSubs();
-            });
-
-            tdAct.appendChild(del);
-
-            tr.appendChild(tdName);
-            tr.appendChild(tdQty);
-            tr.appendChild(tdUnit);
-            tr.appendChild(tdBB);
-            tr.appendChild(tdAct);
-
-            tbody.appendChild(tr);
-          }
-
-          table.appendChild(thead);
-          table.appendChild(tbody);
-          wrap.appendChild(table);
-          card.appendChild(wrap);
-
-          // footer hint
-          const hint = document.createElement('div');
-          hint.className = 'muted small mt12';
-          hint.textContent = `Visar ${rows.length} rad(er)` + (state.q.trim() ? ` (filter: “${state.q.trim()}”)` : '');
-          card.appendChild(hint);
+          tbody.appendChild(tr);
         }
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        card.appendChild(wrap);
 
         subsWrap.appendChild(card);
       }
     }
 
-    /* -----------------------------
-       Cooking tabs
-    ----------------------------- */
+    // Cooking
     function renderCookTabs(){
       cookTabs.textContent = '';
 
@@ -1038,7 +885,6 @@
         ? 'Översikt för hela måltiden (montering/servering).'
         : 'Tillagning för valt underrecept.';
 
-      // preview
       cookPreview.textContent = '';
       const items = normalizeSteps(data.stepsText);
       cookStepsCount.textContent = items.length ? `${items.length} steg` : '—';
@@ -1083,9 +929,6 @@
     saveCooking.addEventListener('click', saveCookActive);
     goCooking.addEventListener('click', () => setCookTab('meal'));
 
-    /* -----------------------------
-       Drawer content from model
-    ----------------------------- */
     function refreshDrawer(){
       const p = state.portions || BASE_PORTIONS;
       const size = state.meal.size || state.size || '—';
@@ -1132,9 +975,7 @@
       }
     }
 
-    /* -----------------------------
-       Global events
-    ----------------------------- */
+    // Global
     elBack.addEventListener('click', () => history.back());
 
     window.addEventListener('keydown', (e) => {
@@ -1162,18 +1003,8 @@
 
     sizeSel.addEventListener('change', () => {
       state.size = sizeSel.value;
-      pillSize.textContent = state.meal.size || state.size || '—';
+      pillSize.textContent = safeStr(state.meal.size || state.size || '—');
       refreshDrawer();
-    });
-
-    expandAllBtn.addEventListener('click', () => {
-      for (const s of state.subs) state.openBySub[s.id] = true;
-      renderSubs();
-    });
-
-    collapseAllBtn.addEventListener('click', () => {
-      for (const s of state.subs) state.openBySub[s.id] = false;
-      renderSubs();
     });
 
     saveBtn.addEventListener('click', () => {
@@ -1181,9 +1012,7 @@
       setTimeout(() => { saveNote.textContent = ''; }, 2200);
     });
 
-    /* -----------------------------
-       Boot
-    ----------------------------- */
+    // Boot
     initFromModel();
     renderHeader();
     renderSubs();
