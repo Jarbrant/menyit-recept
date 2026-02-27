@@ -1,7 +1,10 @@
 <!-- ============================================================
      FIL: pages/recipes.html  (HEL FIL)
      Sida 1: Receptlista (modern)
-     Patch: flytta sökfält + hjälp-popover + kör 10 fejk-recept via app.js
+     PATCH: AO-RECIPES-SEARCH-02 (FAS 1)
+     - Topbar: ta bort Fel-ingr + Anv-ingr (förkortningar ska inte användas)
+     - Hjälp kvar
+     - Behåller: flyttat sökfält + hjälp-popover + +Skapa ny
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent)
 ============================================================ -->
 <!doctype html>
@@ -31,8 +34,12 @@
       <div class="rightSlot" style="position:relative;">
         <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false">Hjälp</button>
 
-        <a class="btn" href="./recipe-disabled-ingredients.html" title="Funktionshindrade ingredienser">Fel-ingr</a>
-        <a class="btn" href="./recipe-used-ingredients.html" title="Använda ingredienser">Anv-ingr</a>
+        <!-- BORTTAGET (AO-RECIPES-SEARCH-02): Fel ingrediens + Använda ingredienser
+             Tidigare:
+             <a class="btn" href="./recipe-disabled-ingredients.html" ...>Fel-ingr</a>
+             <a class="btn" href="./recipe-used-ingredients.html" ...>Anv-ingr</a>
+        -->
+
         <button class="btn btnPrimary" id="createBtn">+ Skapa ny</button>
 
         <!-- Hjälpruta (popover) -->
@@ -63,7 +70,7 @@
 
           <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
           <ul class="muted small" style="margin:0 0 0 18px;">
-            <li>Sök i listan med textfältet.</li>
+            <li>Sök i listan med textfältet (recept, ingrediens, artikelnummer/GTIN).</li>
             <li>Filtrera på Typ/Status/Kategori.</li>
             <li>Klicka på en rad för detaljer i högerpanelen.</li>
             <li>Måltidsrecept visar vilka underrecept som ingår.</li>
