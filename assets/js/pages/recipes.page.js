@@ -1,11 +1,9 @@
 /* ============================================================
    FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   PATCH: AO-RECIPES-INGMODE-02 (FAS 1) — Typ=Alla visar även ingredienser
-   - Nytt: När type === "all" och man söker: visa ingrediensrader + recept-rader i samma tabell
-   - Typ-kolumn: "Ingrediens" för ingrediensrader
-   - Statusfilter gäller både recept och ingredienser
-   - Kategori gäller bara recept (ingredienser ignorerar kategori)
-   - Behåller: startläge 0 tills q.length >= 1
+   PATCH: AO-RECIPES-INGMODE-03 (FAS 1) — Återinför 2 länkar i ingrediens-drawer:
+   - "Öppna måltid" (till meal-recipe-detail)
+   - "Byt ingrediens" (till recipe-used-ingredients / recipe-disabled-ingredients)
+   Layout: knappar på samma rad som tabs
 ============================================================ */
 
 import {
@@ -70,7 +68,6 @@ export function initRecipesPage() {
   const bulkOpen = $("#bulkOpen");
 
   const db = getMockDB();
-
   const MIN_QUERY_CHARS = 1;
 
   const state = {
@@ -79,22 +76,15 @@ export function initRecipesPage() {
     status: "active",   // all | active | inactive
     cat: "all",
     compact: false,
-    selected: new Map(),  // används bara för recept-rader
+    selected: new Map(),
     activeId: null,
     activeIngKey: null,
   };
 
-  function text(v) {
-    return (v ?? "").toString();
-  }
-
-  function isIngredientMode() {
-    return state.type === "ingredient";
-  }
-
-  function shouldShowResultsNow() {
-    return (state.q || "").trim().length >= MIN_QUERY_CHARS;
-  }
+  function text(v) { return (v ?? "").toString(); }
+  function norm(v) { return (v ?? "").toString().trim().toLowerCase(); }
+  function isIngredientMode() { return state.type === "ingredient"; }
+  function shouldShowResultsNow() { return (state.q || "").trim().length >= MIN_QUERY_CHARS; }
 
   function setTab(key) {
     for (const [k, el] of Object.entries(tabViews)) {
@@ -148,15 +138,131 @@ export function initRecipesPage() {
     if (box) box.textContent = "";
   }
 
+  /* ============================================================
+     NYTT: actions-rad vid tabs (för ingrediens-drawer)
+     - “Öppna måltid”
+     - “Byt ingrediens”
+  ============================================================ */
+  function ensureDrawerActionsRow() {
+    const tabsBar = document.querySelector(".tabs");
+    if (!tabsBar) return null;
+
+    let row = document.querySelector("#drawerActionsRow");
+    if (row) return row;
+
+    row = document.createElement("div");
+    row.id = "drawerActionsRow";
+    row.style.display = "none";
+    row.style.margin = "10px 0 8px";
+    row.style.display = "none";
+    row.style.alignItems = "center";
+    row.style.justifyContent = "space-between";
+    row.style.gap = "10px";
+
+    // vänster: “Öppna måltid”
+    const left = document.createElement("div");
+    left.style.display = "flex";
+    left.style.gap = "8px";
+    left.style.alignItems = "center";
+
+    const openMealBtn = document.createElement("a");
+    openMealBtn.id = "openMealBtn";
+    openMealBtn.className = "btn";
+    openMealBtn.href = "#";
+    openMealBtn.textContent = "Öppna måltid";
+    openMealBtn.title = "Öppna ett måltidsrecept som använder ingrediensen";
+
+    left.appendChild(openMealBtn);
+
+    // höger: “Byt ingrediens”
+    const right = document.createElement("div");
+    right.style.display = "flex";
+    right.style.gap = "8px";
+    right.style.alignItems = "center";
+
+    const swapBtn = document.createElement("a");
+    swapBtn.id = "swapIngBtn";
+    swapBtn.className = "btn";
+    swapBtn.href = "#";
+    swapBtn.textContent = "Byt ingrediens";
+    swapBtn.title = "Gå till sida för att byta/ersätta ingrediens (demo)";
+
+    right.appendChild(swapBtn);
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    // Lägg raden precis ovanför tabs (samma rad-zon visuellt)
+    tabsBar.parentElement.insertBefore(row, tabsBar);
+    return row;
+  }
+
+  function setDrawerActionsForIngredient(it) {
+    const row = ensureDrawerActionsRow();
+    if (!row) return;
+
+    const openMealBtn = document.querySelector("#openMealBtn");
+    const swapBtn = document.querySelector("#swapIngBtn");
+
+    // hitta en “bästa” måltid som använder ingrediensen (första träffen räcker i MVP)
+    const mealId = findFirstMealUsingIngredient(it);
+
+    if (openMealBtn) {
+      if (mealId) {
+        openMealBtn.href = `./meal-recipe-detail.html?id=${encodeURIComponent(mealId)}`;
+        openMealBtn.style.pointerEvents = "";
+        openMealBtn.style.opacity = "";
+      } else {
+        openMealBtn.href = "#";
+        openMealBtn.style.pointerEvents = "none";
+        openMealBtn.style.opacity = "0.55";
+      }
+    }
+
+    // “Byt ingrediens” — länka till befintlig sida i repo.
+    // Vi skickar med q= (namn/gtin/articleNo) så ni kan plocka upp senare.
+    const q = encodeURIComponent(it?.gtin || it?.articleNo || it?.name || "");
+    if (swapBtn) {
+      // Välj “used ingredients” som default för byte (kan ändras senare)
+      swapBtn.href = `./recipe-used-ingredients.html?q=${q}`;
+    }
+
+    row.style.display = "flex";
+  }
+
+  function hideDrawerActionsRow() {
+    const row = document.querySelector("#drawerActionsRow");
+    if (row) row.style.display = "none";
+  }
+
+  function findFirstMealUsingIngredient(it) {
+    const target = norm(it?.gtin || it?.articleNo || it?.name || "");
+    if (!target) return null;
+
+    // matcha på gtin/articleNo/name i meal + dess subrecept
+    const meals = (Array.isArray(db?.meals) ? db.meals : []).map((id) => db.byId.get(id)).filter(Boolean);
+    for (const m of meals) {
+      // meal-level ingredients
+      const ingA = Array.isArray(m.ingredients) ? m.ingredients : [];
+      if (ingA.some((x) => norm(x?.gtin || x?.articleNo || x?.name || "").includes(target))) return m.id;
+
+      // subrecept ingredients
+      if (Array.isArray(m.subRecipeIds)) {
+        for (const sid of m.subRecipeIds) {
+          const sr = db.byId.get(sid);
+          const ingB = Array.isArray(sr?.ingredients) ? sr.ingredients : [];
+          if (ingB.some((x) => norm(x?.gtin || x?.articleNo || x?.name || "").includes(target))) return m.id;
+        }
+      }
+    }
+    return null;
+  }
+
   function applyModeUI() {
-    // Kategori är irrelevant i ingrediensläge (men i "Alla" vill Anders ha ingredienser också,
-    // så kategori får vara kvar för receptdelen)
     if (elCat) {
       elCat.disabled = isIngredientMode();
       if (isIngredientMode()) elCat.value = "all";
     }
-
-    // Selection-panel gäller bara recept. I ingrediensläge stänger vi den.
     if (isIngredientMode()) {
       state.selected.clear();
       renderSelectionPanel();
@@ -193,6 +299,9 @@ export function initRecipesPage() {
       ` • Används i ${Number(it.usedCount ?? 0)} recept`;
     elDSub.appendChild(sub);
 
+    // NYTT: visa knapparna “Öppna måltid” + “Byt ingrediens”
+    setDrawerActionsForIngredient(it);
+
     saveNote.textContent = "";
     eName.style.display = "none";
 
@@ -201,7 +310,7 @@ export function initRecipesPage() {
     fStatus.value = (it.status && it.status.toLowerCase() === "inactive") ? "inactive" : "active";
     fDesc.value = text(it.gtin ? `GTIN: ${it.gtin}` : "GTIN: —");
 
-    // Lås i ingrediensläge (fail-closed)
+    // Lås i ingrediensläge
     fName.disabled = true;
     fMealName.disabled = true;
     fStatus.disabled = true;
@@ -395,7 +504,9 @@ export function initRecipesPage() {
     const r = db.byId.get(id);
     if (!r) return;
 
-    // Receptläge: återställ ev ingrediensläge
+    // Receptläge: göm ingrediens-actions-rad
+    hideDrawerActionsRow();
+
     state.activeIngKey = null;
     fName.disabled = false;
     fMealName.disabled = false;
@@ -521,7 +632,6 @@ export function initRecipesPage() {
   function renderIngredientRow(it) {
     const tr = document.createElement("tr");
 
-    // Namn (ingen checkbox i ingrediensrad, men align med recept-rader)
     const tdName = document.createElement("td");
     const spacer = document.createElement("span");
     spacer.style.display = "inline-block";
@@ -665,10 +775,7 @@ export function initRecipesPage() {
   }
 
   function renderMixedAll() {
-    // Ingredienser (statusfilter gäller) – ignorera kategori
     const ing = filterIngredientsByStatus(listIngredients(db, { text: state.q }));
-
-    // Recept (status + kategori gäller)
     const rec = queryRecipes(db, {
       text: state.q,
       type: "all",
@@ -679,7 +786,6 @@ export function initRecipesPage() {
     elMeta.textContent = `${ing.length + rec.length} träffar`;
     elTbody.textContent = "";
 
-    // Visa ingredienser först, sen recept
     for (const it of ing) renderIngredientRow(it);
     for (const r of rec) renderRecipeRow(r);
   }
@@ -707,7 +813,6 @@ export function initRecipesPage() {
       return;
     }
 
-    // I ingrediensläge: ingen selection-panel
     if (isIngredientMode()) {
       elSelPanel.classList.remove("open");
       elSelBody.textContent = "";
@@ -786,16 +891,8 @@ export function initRecipesPage() {
 
   elType?.addEventListener("change", () => {
     state.type = elType.value;
-
     applyModeUI();
     closeDrawer();
-
-    // Byte av typ: håll selections bara för recept (i ingrediensläge rensas)
-    if (isIngredientMode()) {
-      state.selected.clear();
-      renderSelectionPanel();
-    }
-
     render();
   });
 
