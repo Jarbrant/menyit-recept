@@ -2,14 +2,13 @@
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
      Sida 4: Måltidsrecept detalj / arbetsyta
 
-     PATCH v3 (UI/struktur):
-       - NYTT: Ingredienser visas under respektive underrecept (sektion per del)
-       - NYTT: Måltidens egna ingredienser visas i separat sektion (Måltid)
-       - Bort: kolumnen "Källa" (onödig när ingredienser är grupperade)
-       - Behåll: ?id= laddning från FEJKDATA (assets/js/app.js)
-       - Behåll: sök i hero (filtrerar ingredienser)
-       - Behåll: Hjälp-popover i topbar
-       - Behåll: Tillagning per delrecept (flikar)
+     PATCH v4:
+       - Tydligare större receptnamn i topbar (subtitle)
+       - Ingredienser visas under respektive underrecept (sektion per del)
+       - Bort: "Källa"-kolumn (onödig när grupperat)
+       - NYTT: Flytta ingrediens mellan sektioner via dropdown (utan extra kolumn)
+       - NYTT: Skapa nytt underrecept (lokalt) + får egen tillagningsflik
+       - Behåll: ?id= från FEJKDATA (assets/js/app.js), sök filtrerar, XSS-safe
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -29,7 +28,12 @@
         <button class="backBtn" id="backBtn" title="Tillbaka" aria-label="Tillbaka">←</button>
         <div>
           <div class="pageTitle">Måltidsrecept</div>
-          <div class="muted small" id="subtitle">Detaljvy</div>
+          <!-- NYTT: större tydligare text -->
+          <div id="subtitle"
+               class="muted"
+               style="font-size:15px; font-weight:800; line-height:1.2; margin-top:2px;">
+            —
+          </div>
         </div>
       </div>
 
@@ -71,9 +75,9 @@
           <ul class="muted small" style="margin:0 0 0 18px;">
             <li>Sidan öppnas med <span class="kbd">?id=mrX</span> från Receptlistan.</li>
             <li>Ingredienser visas under respektive underrecept.</li>
+            <li>Du kan flytta ingredienser mellan underrecept med “Flytta till”.</li>
             <li>Sök filtrerar alla ingrediensrader.</li>
             <li>Tillagning är uppdelad per delrecept (flikar).</li>
-            <li>Klimat & näring öppnas i högerpanel.</li>
           </ul>
         </div>
       </div>
@@ -84,8 +88,8 @@
 
     <!-- HERO / arbetsyta -->
     <section class="hero">
-      <h1 class="heroTitle" id="h1">Måltidsrecept</h1>
-      <p class="heroSub" id="hSub">Arbetsyta för måltiden. Underrecept visas tydligt.</p>
+      <h1 class="heroTitle" id="h1">—</h1>
+      <p class="heroSub" id="hSub">Arbetsyta för måltiden.</p>
 
       <!-- Sök här (inte topbar) -->
       <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
@@ -148,21 +152,23 @@
 
     <div class="grid grid2 mt16">
 
-      <!-- LEFT: Underrecept + Ingredienser per underrecept -->
+      <!-- LEFT -->
       <section class="card" style="padding:18px;">
-        <div class="flexBetween">
+        <div class="flexBetween" style="align-items:flex-start; gap:12px;">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:900;">Underrecept</h2>
-            <div class="muted small">Ingredienser ligger under respektive underrecept. Sök filtrerar raderna.</div>
+            <div class="muted small">Ingredienser ligger under respektive underrecept. Flytta rader vid behov.</div>
           </div>
-          <button class="btn" id="goCooking" type="button">Visa tillagning</button>
+
+          <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
+            <button class="btn" id="newSubBtn" type="button">+ Nytt underrecept</button>
+            <button class="btn" id="goCooking" type="button">Visa tillagning</button>
+          </div>
         </div>
 
         <hr class="hr" />
-
         <div class="muted small" id="subsHint">—</div>
 
-        <!-- Dynamiskt: sektioner (Måltid + Underrecept) -->
         <div id="sections"></div>
 
         <div class="muted small mt12">
@@ -170,7 +176,7 @@
         </div>
       </section>
 
-      <!-- RIGHT: Tillagning per delrecept -->
+      <!-- RIGHT -->
       <aside class="card" style="padding:18px;">
         <div class="flexBetween" style="align-items:flex-start; gap:12px;">
           <div>
@@ -357,6 +363,8 @@
     const saveBtn = $('#saveBtn');
     const saveNote = $('#saveNote');
 
+    const newSubBtn = $('#newSubBtn');
+
     // Cooking UI
     const cookTabs = $('#cookTabs');
     const cookBadge = $('#cookBadge');
@@ -382,7 +390,8 @@
     // State
     const state = {
       meal: expanded.meal,
-      subs: expanded.subs,
+      // subs kan utökas lokalt med nya underrecept
+      subs: Array.isArray(expanded.subs) ? expanded.subs.slice() : [],
       q: '',
       // rowsByKey: { meal: [...], [subId]: [...] }
       rowsByKey: {},
@@ -406,7 +415,6 @@
       return raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     }
 
-    // Init cooking per del
     function initCook(){
       state.cook.byKey['meal'] = {
         title: state.meal.name,
@@ -424,11 +432,9 @@
       }
     }
 
-    // Build rows grouped
     function buildRows(){
       const out = {};
 
-      // Meal ingredients
       const mIng = Array.isArray(state.meal.ingredients) ? state.meal.ingredients : [];
       out.meal = mIng.map(it => ({
         id: uid('m'),
@@ -438,7 +444,6 @@
         bestBefore: ''
       }));
 
-      // Sub ingredients per subId
       for (const s of state.subs){
         const sIng = Array.isArray(s.ingredients) ? s.ingredients : [];
         out[s.id] = sIng.map(it => ({
@@ -456,6 +461,7 @@
     function renderHeader(){
       elH1.textContent = state.meal.name;
       elHSub.textContent = state.meal.desc ? state.meal.desc : 'Arbetsyta för måltiden.';
+      // större text i topbar (som du pekade på)
       elSubtitle.textContent = state.meal.name;
 
       pillStatus.textContent = state.meal.status === 'active' ? 'Aktiv' : 'Inaktiv';
@@ -473,6 +479,22 @@
       return (`${r.name} ${r.unit}`).toLowerCase().includes(q);
     }
 
+    function listMoveTargets(){
+      const targets = [{ key: 'meal', label: 'Måltid (övergripande)' }];
+      for (const s of state.subs){
+        targets.push({ key: s.id, label: s.name });
+      }
+      return targets;
+    }
+
+    function moveRow(fromKey, toKey, row){
+      if (fromKey === toKey) return;
+      state.rowsByKey[fromKey] = (state.rowsByKey[fromKey] || []).filter(x => x !== row);
+      if (!state.rowsByKey[toKey]) state.rowsByKey[toKey] = [];
+      state.rowsByKey[toKey].push(row);
+      renderSections();
+    }
+
     function makeTable(rows, key){
       const tableWrap = document.createElement('div');
       tableWrap.className = 'card mt12 tableCard';
@@ -486,10 +508,10 @@
       const trh = document.createElement('tr');
 
       const cols = [
-        { label: 'Ingrediens', w: '40%' },
+        { label: 'Ingrediens', w: '42%' },
         { label: 'Mängd', w: '16%' },
         { label: 'Enhet', w: '14%' },
-        { label: 'Bäst före', w: '24%' },
+        { label: 'Bäst före', w: '22%' },
         { label: '—', w: '6%', actions: true }
       ];
 
@@ -541,6 +563,29 @@
 
         const tdAct = document.createElement('td');
         tdAct.className = 'actions';
+
+        // NYTT: Flytta till (utan extra kolumn)
+        const moveSel = document.createElement('select');
+        moveSel.className = 'input';
+        moveSel.setAttribute('aria-label', 'Flytta ingrediens till');
+        moveSel.style.width = '100%';
+        moveSel.style.maxWidth = '150px';
+        moveSel.style.marginBottom = '8px';
+
+        const targets = listMoveTargets();
+        targets.forEach(t => {
+          const o = document.createElement('option');
+          o.value = t.key;
+          o.textContent = t.label;
+          if (t.key === key) o.selected = true;
+          moveSel.appendChild(o);
+        });
+
+        moveSel.addEventListener('change', () => {
+          const toKey = moveSel.value;
+          moveRow(key, toKey, r);
+        });
+
         const del = document.createElement('button');
         del.className = 'iconBtn';
         del.title = 'Ta bort';
@@ -549,6 +594,8 @@
           state.rowsByKey[key] = (state.rowsByKey[key] || []).filter(x => x !== r);
           renderSections();
         });
+
+        tdAct.appendChild(moveSel);
         tdAct.appendChild(del);
 
         tr.appendChild(tdName);
@@ -618,7 +665,6 @@
       btnAdd.textContent = '+ Lägg till ingrediens';
       btnAdd.addEventListener('click', () => addRowTo(key));
 
-      // Underrecept får "Tillagning"
       if (key !== 'meal'){
         const btnCook = document.createElement('button');
         btnCook.className = 'btn';
@@ -642,14 +688,12 @@
     function renderSections(){
       sectionsEl.textContent = '';
 
-      // 1) Måltidens egna ingredienser
       sectionsEl.appendChild(renderSectionCard({
         key: 'meal',
         title: 'Måltid (övergripande)',
-        subtitle: 'Ingredienser som hör till hela måltiden.'
+        subtitle: 'Ingredienser som hör till hela måltiden (flytta rader om de tillhör ett underrecept).'
       }));
 
-      // 2) Underrecept, med sin egen tabell under
       for (const s of state.subs){
         sectionsEl.appendChild(renderSectionCard({
           key: s.id,
@@ -771,6 +815,35 @@
       renderCookEditor();
     }
 
+    function createNewSub(){
+      const name = prompt('Namn på nytt underrecept:');
+      const clean = safeStr(name).trim();
+      if (!clean) return;
+
+      const sub = {
+        id: uid('sub'),
+        name: clean,
+        status: 'active',
+        desc: ''
+      };
+
+      state.subs.push(sub);
+      state.rowsByKey[sub.id] = [];
+
+      // skapa tillagningsblock för nya underreceptet
+      state.cook.byKey[sub.id] = {
+        title: sub.name,
+        desc: '',
+        steps: '1. Förbered.\n2. Tillaga.\n3. Klart.',
+        note: ''
+      };
+
+      pillSubs.textContent = `${state.subs.length} underrecept`;
+      renderSections();
+      renderCookTabs();
+      setCookTab(sub.id);
+    }
+
     // Events
     elBack.addEventListener('click', () => history.back());
 
@@ -812,6 +885,8 @@
 
     goCooking.addEventListener('click', () => setCookTab('meal'));
     saveCooking.addEventListener('click', saveCookActive);
+
+    newSubBtn.addEventListener('click', createNewSub);
 
     saveBtn.addEventListener('click', () => {
       saveNote.textContent = 'Sparat (demo).';
