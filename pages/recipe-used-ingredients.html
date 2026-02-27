@@ -1,8 +1,7 @@
 <!-- ============================================================
      FIL: pages/recipe-used-ingredients.html  (HEL FIL)
-     PATCH: AO-USED-INGR-DEEPLINK-01 (FAS 1)
-     - Deep link: ?q=... => filtrera till 1 ingrediens + auto-öppna drawer (bild 3)
-     Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
+     PATCH: AO-USED-INGR-DEEPLINK-02 (FAS 1)
+     - Deep link: ?q=... => filtrera + auto-öppna drawer + auto-tab Recept
 ============================================================ -->
 <!doctype html>
 <html lang="sv">
@@ -307,7 +306,8 @@
       active: null,
       repQ: '',
       repPick: null,
-      noteById: new Map()
+      noteById: new Map(),
+      didAutoOpen: false, // skydd så vi inte auto-öppnar flera gånger
     };
 
     function matches(item){
@@ -358,6 +358,13 @@
 
         tr.addEventListener('click', () => openDrawer(it));
         elTbody.appendChild(tr);
+      }
+
+      // AUTO: om vi har exakt 1 rad och vi kommer från deep-link, öppna den direkt
+      if (!state.didAutoOpen && state.q.trim() && rows.length === 1){
+        state.didAutoOpen = true;
+        openDrawer(rows[0]);
+        setTab('recipes');
       }
 
       return rows;
@@ -457,57 +464,27 @@
       }
     }
 
-    // Deep link (AO-USED-INGR-DEEPLINK-01)
     function readQParam(){
       try {
         const u = new URL(window.location.href);
-        const q = (u.searchParams.get('q') || '').trim();
-        return q;
+        return (u.searchParams.get('q') || '').trim();
       } catch {
         return '';
       }
-    }
-
-    function findBestMatch(rows, q){
-      const qq = (q || '').trim().toLowerCase();
-      if (!qq) return null;
-
-      // 1) exakt namnmatch
-      const exact = rows.find(x => (x.name || '').toLowerCase() === qq);
-      if (exact) return exact;
-
-      // 2) startsWith namn
-      const sw = rows.find(x => (x.name || '').toLowerCase().startsWith(qq));
-      if (sw) return sw;
-
-      // 3) includes namn
-      const inc = rows.find(x => (x.name || '').toLowerCase().includes(qq));
-      if (inc) return inc;
-
-      return null;
     }
 
     function applyDeepLink(){
       const q = readQParam();
       if (!q) return;
 
-      // Sätt sök + render
       elQ.value = q;
       state.q = q;
 
-      const rows = render(); // returns filtered rows
-      if (!rows || rows.length === 0) return;
+      // Reset auto-open guard vid ny deeplink
+      state.didAutoOpen = false;
 
-      // Om listan filtrerats till 1 rad => öppna den
-      let pick = null;
-      if (rows.length === 1) pick = rows[0];
-      else pick = findBestMatch(rows, q);
-
-      if (!pick) return;
-
-      // Öppna drawer direkt + välj rätt tab
-      openDrawer(pick);
-      setTab('recipes');
+      // Render kommer auto-öppna om exakt 1 träff
+      render();
     }
 
     // Events
@@ -524,10 +501,11 @@
       }
     });
 
-    elQ.addEventListener('input', () => { state.q = elQ.value; render(); });
+    elQ.addEventListener('input', () => { state.q = elQ.value; state.didAutoOpen = true; render(); });
 
     elMin.addEventListener('change', () => {
       state.min = parseInt(elMin.value, 10) || 0;
+      state.didAutoOpen = true;
       render();
     });
 
