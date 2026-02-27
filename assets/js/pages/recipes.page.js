@@ -1,9 +1,10 @@
 /* ============================================================
    FIL: assets/js/pages/recipes.page.js  (HEL FIL)
-   PATCH: AO-RECIPES-INGMODE-01 (FAS 1) — Typ: Ingredienser + statusfilter
-   - Nytt typ-läge "ingredient": visar ingredienser som rader
-   - Statusfilter gäller ingredienser i ingrediensläge
-   - Kategori disable i ingrediensläge (irrelevant)
+   PATCH: AO-RECIPES-INGMODE-02 (FAS 1) — Typ=Alla visar även ingredienser
+   - Nytt: När type === "all" och man söker: visa ingrediensrader + recept-rader i samma tabell
+   - Typ-kolumn: "Ingrediens" för ingrediensrader
+   - Statusfilter gäller både recept och ingredienser
+   - Kategori gäller bara recept (ingredienser ignorerar kategori)
    - Behåller: startläge 0 tills q.length >= 1
 ============================================================ */
 
@@ -12,8 +13,7 @@ import {
   queryRecipes,
   getMealSummary,
   expandMeal,
-  listIngredients,
-  norm
+  listIngredients
 } from "../app.js";
 
 export function initRecipesPage() {
@@ -71,7 +71,6 @@ export function initRecipesPage() {
 
   const db = getMockDB();
 
-  // NÄR ska fejkresultat börja visas?
   const MIN_QUERY_CHARS = 1;
 
   const state = {
@@ -80,9 +79,9 @@ export function initRecipesPage() {
     status: "active",   // all | active | inactive
     cat: "all",
     compact: false,
-    selected: new Map(),  // används bara för receptläge
-    activeId: null,       // recept-id i receptläge
-    activeIngKey: null,   // ingrediens-key i ingrediensläge
+    selected: new Map(),  // används bara för recept-rader
+    activeId: null,
+    activeIngKey: null,
   };
 
   function text(v) {
@@ -93,16 +92,16 @@ export function initRecipesPage() {
     return state.type === "ingredient";
   }
 
+  function shouldShowResultsNow() {
+    return (state.q || "").trim().length >= MIN_QUERY_CHARS;
+  }
+
   function setTab(key) {
     for (const [k, el] of Object.entries(tabViews)) {
       if (!el) continue;
       el.style.display = k === key ? "" : "none";
     }
     tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === key));
-  }
-
-  function shouldShowResultsNow() {
-    return (state.q || "").trim().length >= MIN_QUERY_CHARS;
   }
 
   function ensureMealViewTab() {
@@ -150,13 +149,14 @@ export function initRecipesPage() {
   }
 
   function applyModeUI() {
-    // Kategori är irrelevant i ingrediensläge
+    // Kategori är irrelevant i ingrediensläge (men i "Alla" vill Anders ha ingredienser också,
+    // så kategori får vara kvar för receptdelen)
     if (elCat) {
       elCat.disabled = isIngredientMode();
       if (isIngredientMode()) elCat.value = "all";
     }
 
-    // Bulk/selection är inte relevant i ingrediensläge
+    // Selection-panel gäller bara recept. I ingrediensläge stänger vi den.
     if (isIngredientMode()) {
       state.selected.clear();
       renderSelectionPanel();
@@ -164,92 +164,26 @@ export function initRecipesPage() {
     }
   }
 
-  /* =========================
-     RENDER: Ingrediensläge
-  ========================== */
-  function renderIngredientRows() {
-    const rows = listIngredients(db, { text: state.q });
-
-    // Statusfilter på ingredienser
-    const filtered = rows.filter((it) => {
-      if (state.status === "all") return true;
-      const st = (it.status || "").toLowerCase();
-      // om status saknas => behandla som active (fail-soft i demo)
-      if (!st) return state.status === "active";
-      return st === state.status;
-    });
-
-    elMeta.textContent = `${filtered.length} träffar`;
-    elTbody.textContent = "";
-
-    for (const it of filtered) {
-      const tr = document.createElement("tr");
-
-      // Namn (klickbar)
-      const tdName = document.createElement("td");
-      const a = document.createElement("a");
-      a.href = "#";
-      a.textContent = it.name || "—";
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        openIngredientDrawer(it);
-      });
-      tdName.appendChild(a);
-
-      // “Måltidsnamn”-kolumnen återanvänds: användning
-      const tdMeal = document.createElement("td");
-      tdMeal.textContent = `Används i ${Number(it.usedCount ?? 0)} recept`;
-
-      const tdType = document.createElement("td");
-      tdType.textContent = "Ingrediens";
-
-      const tdPrice = document.createElement("td");
-      tdPrice.textContent = "—";
-
-      const tdStatus = document.createElement("td");
-      const b = document.createElement("span");
-      const st = (it.status || "").toLowerCase();
-      const isOk = !st || st === "active";
-      b.className = "badge " + (isOk ? "badgeOk" : "badgeMuted");
-      b.textContent = isOk ? "Aktiv" : "Inaktiv";
-      tdStatus.appendChild(b);
-
-      const tdAct = document.createElement("td");
-      tdAct.className = "actions";
-      const btn = document.createElement("button");
-      btn.className = "iconBtn";
-      btn.title = "Detaljer";
-      btn.textContent = "⋯";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openIngredientDrawer(it);
-      });
-      tdAct.appendChild(btn);
-
-      tr.appendChild(tdName);
-      tr.appendChild(tdMeal);
-      tr.appendChild(tdType);
-      tr.appendChild(tdPrice);
-      tr.appendChild(tdStatus);
-      tr.appendChild(tdAct);
-
-      if (state.compact) {
-        tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
-      }
-
-      tr.addEventListener("click", () => openIngredientDrawer(it));
-      elTbody.appendChild(tr);
-    }
+  function badgeForStatus(statusValue) {
+    const tdStatus = document.createElement("td");
+    const b = document.createElement("span");
+    const st = (statusValue || "").toLowerCase();
+    const isOk = !st || st === "active";
+    b.className = "badge " + (isOk ? "badgeOk" : "badgeMuted");
+    b.textContent = isOk ? "Aktiv" : "Inaktiv";
+    tdStatus.appendChild(b);
+    return tdStatus;
   }
 
+  /* =========================
+     INGREDIENS: Drawer
+  ========================== */
   function openIngredientDrawer(it) {
     if (!it) return;
 
-    // Markera att vi är i ingrediensläge
     state.activeId = null;
     state.activeIngKey = it.key || null;
 
-    // Drawer title/sub
     elDTitle.textContent = it.name || "Ingrediens";
     elDSub.textContent = "";
     const sub = document.createElement("span");
@@ -259,8 +193,6 @@ export function initRecipesPage() {
       ` • Används i ${Number(it.usedCount ?? 0)} recept`;
     elDSub.appendChild(sub);
 
-    // Översikt: vi återanvänder samma formfält men låser dem
-    // (ingen ny UX nu, bara “read-only info”)
     saveNote.textContent = "";
     eName.style.display = "none";
 
@@ -269,7 +201,7 @@ export function initRecipesPage() {
     fStatus.value = (it.status && it.status.toLowerCase() === "inactive") ? "inactive" : "active";
     fDesc.value = text(it.gtin ? `GTIN: ${it.gtin}` : "GTIN: —");
 
-    // Disable inputs i ingrediensläge (fail-closed)
+    // Lås i ingrediensläge (fail-closed)
     fName.disabled = true;
     fMealName.disabled = true;
     fStatus.disabled = true;
@@ -277,12 +209,10 @@ export function initRecipesPage() {
     if (saveBtn) saveBtn.disabled = true;
     if (dupBtn) dupBtn.disabled = true;
 
-    // Klimat-badges etc: visa —
     co2Badge.textContent = "—";
     energyBadge.textContent = "—";
     sizeBadge.textContent = "—";
 
-    // Ingredienser-tab: visa “—” (detta ÄR ingrediensen)
     ingList.textContent = "";
     const box = document.createElement("div");
     box.className = "card";
@@ -297,8 +227,7 @@ export function initRecipesPage() {
     const line2 = document.createElement("div");
     line2.className = "muted small";
     line2.style.marginTop = "6px";
-    line2.textContent =
-      `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
+    line2.textContent = `Artikelnummer: ${it.articleNo || "—"} • GTIN: ${it.gtin || "—"}`;
     box.appendChild(line2);
 
     const line3 = document.createElement("div");
@@ -309,9 +238,7 @@ export function initRecipesPage() {
 
     ingList.appendChild(box);
 
-    // Historik-tab: enkel placeholder
     histList.textContent = "—";
-
     hideMealViewTabIfAny();
 
     elOverlay.classList.add("open");
@@ -322,165 +249,8 @@ export function initRecipesPage() {
   }
 
   /* =========================
-     RENDER: Receptläge
+     RECEPT: Drawer
   ========================== */
-  function renderRecipesRows() {
-    const rows = queryRecipes(db, {
-      text: state.q,
-      type: state.type,
-      status: state.status,
-      cat: state.cat,
-    });
-
-    elMeta.textContent = `${rows.length} träffar`;
-    elTbody.textContent = "";
-
-    for (const r of rows) {
-      const tr = document.createElement("tr");
-
-      const tdName = document.createElement("td");
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.style.marginRight = "10px";
-      cb.checked = state.selected.has(r.id);
-      cb.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (cb.checked) state.selected.set(r.id, r);
-        else state.selected.delete(r.id);
-        renderSelectionPanel();
-      });
-
-      const a = document.createElement("a");
-      a.href = "#";
-      a.textContent = r.name;
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        openDrawer(r.id);
-      });
-
-      tdName.appendChild(cb);
-      tdName.appendChild(a);
-
-      const tdMeal = document.createElement("td");
-      tdMeal.textContent = r.mealName;
-
-      const tdType = document.createElement("td");
-      tdType.textContent = r.type === "meal" ? "Måltid" : "Under";
-
-      const tdPrice = document.createElement("td");
-      tdPrice.textContent = r.price ?? "—";
-
-      const tdStatus = document.createElement("td");
-      const b = document.createElement("span");
-      b.className = "badge " + (r.status === "active" ? "badgeOk" : "badgeMuted");
-      b.textContent = r.status === "active" ? "Aktiv" : "Inaktiv";
-      tdStatus.appendChild(b);
-
-      const tdAct = document.createElement("td");
-      tdAct.className = "actions";
-      const btn = document.createElement("button");
-      btn.className = "iconBtn";
-      btn.title = "Detaljer";
-      btn.textContent = "⋯";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openDrawer(r.id);
-      });
-      tdAct.appendChild(btn);
-
-      tr.appendChild(tdName);
-      tr.appendChild(tdMeal);
-      tr.appendChild(tdType);
-      tr.appendChild(tdPrice);
-      tr.appendChild(tdStatus);
-      tr.appendChild(tdAct);
-
-      if (state.compact) {
-        tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
-      }
-
-      tr.addEventListener("click", () => openDrawer(r.id));
-      elTbody.appendChild(tr);
-    }
-  }
-
-  function render() {
-    // Startläge: inga resultat förrän man sökt
-    if (!shouldShowResultsNow()) {
-      elMeta.textContent = `0 träffar`;
-      elTbody.textContent = "";
-      return;
-    }
-
-    if (isIngredientMode()) renderIngredientRows();
-    else renderRecipesRows();
-  }
-
-  function renderSelectionPanel() {
-    const n = state.selected.size;
-    elSelCount.textContent = String(n);
-
-    // Om vi är i “ingen sökning”-läge: stäng panelen
-    if (!shouldShowResultsNow()) {
-      elSelPanel.classList.remove("open");
-      elSelBody.textContent = "";
-      state.selected.clear();
-      return;
-    }
-
-    // Om ingrediensläge: ingen selection-panel
-    if (isIngredientMode()) {
-      elSelPanel.classList.remove("open");
-      elSelBody.textContent = "";
-      state.selected.clear();
-      return;
-    }
-
-    if (n === 0) {
-      elSelPanel.classList.remove("open");
-      elSelBody.textContent = "";
-      return;
-    }
-
-    elSelPanel.classList.add("open");
-    elSelBody.textContent = "";
-
-    for (const r of state.selected.values()) {
-      const row = document.createElement("div");
-      row.className = "selectionItem";
-
-      const left = document.createElement("div");
-      const nm = document.createElement("div");
-      nm.className = "name";
-      nm.textContent = r.name;
-
-      const sub = document.createElement("div");
-      sub.className = "sub";
-      sub.textContent =
-        (r.status === "active" ? "Aktiv" : "Inaktiv") +
-        " • " +
-        (r.type === "meal" ? "Måltid" : "Under");
-
-      left.appendChild(nm);
-      left.appendChild(sub);
-
-      const del = document.createElement("button");
-      del.className = "iconBtn";
-      del.title = "Ta bort";
-      del.textContent = "🗑";
-      del.addEventListener("click", () => {
-        state.selected.delete(r.id);
-        renderSelectionPanel();
-        render();
-      });
-
-      row.appendChild(left);
-      row.appendChild(del);
-      elSelBody.appendChild(row);
-    }
-  }
-
   function renderIngredientsTab(r) {
     ingList.textContent = "";
 
@@ -694,7 +464,6 @@ export function initRecipesPage() {
   }
 
   function doSave() {
-    // Fail-closed i ingrediensläge
     if (isIngredientMode()) return;
 
     const r = db.byId.get(state.activeId);
@@ -719,7 +488,6 @@ export function initRecipesPage() {
   }
 
   function doDuplicate() {
-    // Fail-closed i ingrediensläge
     if (isIngredientMode()) return;
 
     const r = db.byId.get(state.activeId);
@@ -737,7 +505,263 @@ export function initRecipesPage() {
     render();
   }
 
-  // Events
+  /* =========================
+     RENDER
+  ========================== */
+
+  function filterIngredientsByStatus(arr) {
+    return arr.filter((it) => {
+      if (state.status === "all") return true;
+      const st = (it.status || "").toLowerCase();
+      if (!st) return state.status === "active";
+      return st === state.status;
+    });
+  }
+
+  function renderIngredientRow(it) {
+    const tr = document.createElement("tr");
+
+    // Namn (ingen checkbox i ingrediensrad, men align med recept-rader)
+    const tdName = document.createElement("td");
+    const spacer = document.createElement("span");
+    spacer.style.display = "inline-block";
+    spacer.style.width = "22px";
+    spacer.style.marginRight = "10px";
+    tdName.appendChild(spacer);
+
+    const a = document.createElement("a");
+    a.href = "#";
+    a.textContent = it.name || "—";
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      openIngredientDrawer(it);
+    });
+    tdName.appendChild(a);
+
+    const tdMeal = document.createElement("td");
+    tdMeal.textContent = `Används i ${Number(it.usedCount ?? 0)} recept`;
+
+    const tdType = document.createElement("td");
+    tdType.textContent = "Ingrediens";
+
+    const tdPrice = document.createElement("td");
+    tdPrice.textContent = "—";
+
+    const tdStatus = badgeForStatus(it.status);
+
+    const tdAct = document.createElement("td");
+    tdAct.className = "actions";
+    const btn = document.createElement("button");
+    btn.className = "iconBtn";
+    btn.title = "Detaljer";
+    btn.textContent = "⋯";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openIngredientDrawer(it);
+    });
+    tdAct.appendChild(btn);
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdMeal);
+    tr.appendChild(tdType);
+    tr.appendChild(tdPrice);
+    tr.appendChild(tdStatus);
+    tr.appendChild(tdAct);
+
+    if (state.compact) {
+      tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
+    }
+
+    tr.addEventListener("click", () => openIngredientDrawer(it));
+    elTbody.appendChild(tr);
+  }
+
+  function renderRecipeRow(r) {
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.style.marginRight = "10px";
+    cb.checked = state.selected.has(r.id);
+    cb.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (cb.checked) state.selected.set(r.id, r);
+      else state.selected.delete(r.id);
+      renderSelectionPanel();
+    });
+
+    const a = document.createElement("a");
+    a.href = "#";
+    a.textContent = r.name;
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      openDrawer(r.id);
+    });
+
+    tdName.appendChild(cb);
+    tdName.appendChild(a);
+
+    const tdMeal = document.createElement("td");
+    tdMeal.textContent = r.mealName;
+
+    const tdType = document.createElement("td");
+    tdType.textContent = r.type === "meal" ? "Måltid" : "Under";
+
+    const tdPrice = document.createElement("td");
+    tdPrice.textContent = r.price ?? "—";
+
+    const tdStatus = document.createElement("td");
+    const b = document.createElement("span");
+    b.className = "badge " + (r.status === "active" ? "badgeOk" : "badgeMuted");
+    b.textContent = r.status === "active" ? "Aktiv" : "Inaktiv";
+    tdStatus.appendChild(b);
+
+    const tdAct = document.createElement("td");
+    tdAct.className = "actions";
+    const btn = document.createElement("button");
+    btn.className = "iconBtn";
+    btn.title = "Detaljer";
+    btn.textContent = "⋯";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDrawer(r.id);
+    });
+    tdAct.appendChild(btn);
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdMeal);
+    tr.appendChild(tdType);
+    tr.appendChild(tdPrice);
+    tr.appendChild(tdStatus);
+    tr.appendChild(tdAct);
+
+    if (state.compact) {
+      tr.querySelectorAll("td").forEach((td) => (td.style.padding = "9px 12px"));
+    }
+
+    tr.addEventListener("click", () => openDrawer(r.id));
+    elTbody.appendChild(tr);
+  }
+
+  function renderIngredientOnly() {
+    const rows = filterIngredientsByStatus(listIngredients(db, { text: state.q }));
+    elMeta.textContent = `${rows.length} träffar`;
+    elTbody.textContent = "";
+    for (const it of rows) renderIngredientRow(it);
+  }
+
+  function renderRecipesOnly() {
+    const rows = queryRecipes(db, {
+      text: state.q,
+      type: state.type,
+      status: state.status,
+      cat: state.cat,
+    });
+    elMeta.textContent = `${rows.length} träffar`;
+    elTbody.textContent = "";
+    for (const r of rows) renderRecipeRow(r);
+  }
+
+  function renderMixedAll() {
+    // Ingredienser (statusfilter gäller) – ignorera kategori
+    const ing = filterIngredientsByStatus(listIngredients(db, { text: state.q }));
+
+    // Recept (status + kategori gäller)
+    const rec = queryRecipes(db, {
+      text: state.q,
+      type: "all",
+      status: state.status,
+      cat: state.cat,
+    });
+
+    elMeta.textContent = `${ing.length + rec.length} träffar`;
+    elTbody.textContent = "";
+
+    // Visa ingredienser först, sen recept
+    for (const it of ing) renderIngredientRow(it);
+    for (const r of rec) renderRecipeRow(r);
+  }
+
+  function render() {
+    if (!shouldShowResultsNow()) {
+      elMeta.textContent = `0 träffar`;
+      elTbody.textContent = "";
+      return;
+    }
+
+    if (isIngredientMode()) return renderIngredientOnly();
+    if (state.type === "all") return renderMixedAll();
+    return renderRecipesOnly();
+  }
+
+  function renderSelectionPanel() {
+    const n = state.selected.size;
+    elSelCount.textContent = String(n);
+
+    if (!shouldShowResultsNow()) {
+      elSelPanel.classList.remove("open");
+      elSelBody.textContent = "";
+      state.selected.clear();
+      return;
+    }
+
+    // I ingrediensläge: ingen selection-panel
+    if (isIngredientMode()) {
+      elSelPanel.classList.remove("open");
+      elSelBody.textContent = "";
+      state.selected.clear();
+      return;
+    }
+
+    if (n === 0) {
+      elSelPanel.classList.remove("open");
+      elSelBody.textContent = "";
+      return;
+    }
+
+    elSelPanel.classList.add("open");
+    elSelBody.textContent = "";
+
+    for (const r of state.selected.values()) {
+      const row = document.createElement("div");
+      row.className = "selectionItem";
+
+      const left = document.createElement("div");
+      const nm = document.createElement("div");
+      nm.className = "name";
+      nm.textContent = r.name;
+
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent =
+        (r.status === "active" ? "Aktiv" : "Inaktiv") +
+        " • " +
+        (r.type === "meal" ? "Måltid" : "Under");
+
+      left.appendChild(nm);
+      left.appendChild(sub);
+
+      const del = document.createElement("button");
+      del.className = "iconBtn";
+      del.title = "Ta bort";
+      del.textContent = "🗑";
+      del.addEventListener("click", () => {
+        state.selected.delete(r.id);
+        renderSelectionPanel();
+        render();
+      });
+
+      row.appendChild(left);
+      row.appendChild(del);
+      elSelBody.appendChild(row);
+    }
+  }
+
+  /* =========================
+     Events
+  ========================== */
   elBack?.addEventListener("click", () => history.back());
 
   window.addEventListener("keydown", (e) => {
@@ -764,11 +788,14 @@ export function initRecipesPage() {
     state.type = elType.value;
 
     applyModeUI();
-
-    // Stäng drawer när man byter typ (minskar förvirring)
     closeDrawer();
 
-    renderSelectionPanel();
+    // Byte av typ: håll selections bara för recept (i ingrediensläge rensas)
+    if (isIngredientMode()) {
+      state.selected.clear();
+      renderSelectionPanel();
+    }
+
     render();
   });
 
@@ -817,9 +844,7 @@ export function initRecipesPage() {
 
   bulkInactive?.addEventListener("click", () => {
     if (isIngredientMode()) return;
-    for (const r of state.selected.values()) {
-      r.status = "inactive";
-    }
+    for (const r of state.selected.values()) r.status = "inactive";
     state.selected.clear();
     renderSelectionPanel();
     render();
