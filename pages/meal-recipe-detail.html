@@ -1,15 +1,13 @@
 <!-- ============================================================
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
-     Sida: Måltidsrecept detalj (SUPERSIDA v1.1 – STÄDAD)
+     Sida: Måltidsrecept detalj (SUPERSIDA v1.2 – MER STÄDAD)
 
-     PATCH: AO-RECIPES-SUPERPAGE-02 (FAS 1)
-     Ändringar (städ/rensa enligt markeringar):
-       - Bort: Leverantör-pill i hero (onödig rad)
-       - Bort: stor sökrad i hero (flyttad till vänsterpanelen för att minska höjd)
-       - Bort: “SUPERSIDA”-badge i sticky actions (onödig)
-       - Bort: extra rubrik-rader/texter i vänsterpanel (“Visar exakt…”, “Ingår i måltiden:”)
-       - Bort: Expandera alla / Fäll ihop (onödig rad) — behåller “Visa tillagning”
-       - Färre rader totalt, mer kompakt layout
+     PATCH: AO-RECIPES-SUPERPAGE-03 (FAS 1)
+     STÄDNING (allt markerat blått i bilden bort):
+       - Bort: “Visa tillagning”-knappen i vänsterkortets header
+       - Bort: sökraden i vänsterkortet (inkl /-hint och /-snabbtangent)
+       - Bort: “Tillagning”-knappen på varje underreceptkort (högerpanelen räcker)
+       - Uppdaterad hjälptext (tar bort referenser till /-sök)
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -61,8 +59,7 @@
           </div>
 
           <div class="muted small mt12">
-            <div><span class="kbd">/</span> fokuserar sök</div>
-            <div><span class="kbd">Esc</span> stänger panel</div>
+            <div><span class="kbd">Esc</span> stänger paneler</div>
           </div>
 
           <hr class="hr" />
@@ -70,7 +67,7 @@
           <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
           <ul class="muted small" style="margin:0 0 0 18px;">
             <li>Öppnas med <span class="kbd">?id=mrX</span> från receptlistan.</li>
-            <li>Underrecept kommer exakt från <span class="kbd">subRecipeIds</span>.</li>
+            <li>Underrecept kommer från <span class="kbd">subRecipeIds</span>.</li>
             <li>Portioner skalar ingrediensmängder (demo-basis: 25).</li>
             <li>Klicka ingrediensnamn för produktkort.</li>
           </ul>
@@ -81,7 +78,7 @@
 
   <main class="container">
 
-    <!-- HERO (städad, utan sök + utan extra pill) -->
+    <!-- HERO -->
     <section class="hero" aria-label="Receptöversikt">
       <div class="flexBetween" style="align-items:flex-start;">
         <div style="min-width:240px;">
@@ -97,7 +94,7 @@
       </div>
     </section>
 
-    <!-- Sticky actions (städad: inga extra badges) -->
+    <!-- Sticky actions -->
     <div class="card mt16" style="padding:12px 14px; position:sticky; top:64px; z-index:10;">
       <div class="flexBetween" style="align-items:flex-start;">
         <div class="muted small" id="metaLine">—</div>
@@ -144,21 +141,6 @@
         <div class="flexBetween" style="align-items:flex-start; gap:12px;">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:900;">Underrecept</h2>
-          </div>
-
-          <div class="flex gap10" style="align-items:center; flex-wrap:wrap;">
-            <button class="btn" id="goCooking" type="button">Visa tillagning</button>
-          </div>
-        </div>
-
-        <!-- Kompakt sök (flyttad hit från hero) -->
-        <div class="mt12" style="display:flex; align-items:center; gap:10px;">
-          <div class="searchWrap" style="margin:0; width:100%; padding:10px 12px;">
-            <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
-            </svg>
-            <input id="q" class="searchInput" type="search" placeholder="Sök ingrediens…" autocomplete="off" />
-            <span class="kbd" title="Snabbtangent">/</span>
           </div>
         </div>
 
@@ -223,7 +205,7 @@
        aria-label="Produktkort"
        style="display:none;">
     <div class="selectionHeader">
-      <div class="title" id="ppTitle">Produktkort</div>
+      <div class="title">Produktkort</div>
       <button class="iconBtn" id="ppClose" type="button" aria-label="Stäng">✕</button>
     </div>
     <div class="selectionBody" style="gap:12px;">
@@ -402,7 +384,6 @@
     const pillSubs = $('#pillSubs');
     const pillSize = $('#pillSize');
 
-    const elQ = $('#q');
     const subsWrap = $('#subsWrap');
 
     const portionSel = $('#portionSel');
@@ -422,7 +403,6 @@
     const cookSaveNote = $('#cookSaveNote');
     const saveCooking = $('#saveCooking');
     const cookStepsCount = $('#cookStepsCount');
-    const goCooking = $('#goCooking');
 
     const drawerTabs = Array.from(document.querySelectorAll('.drawer .tab'));
     const tabViews = {
@@ -573,7 +553,6 @@
     const state = {
       meal: expanded.meal,
       subs: Array.isArray(expanded.subs) ? expanded.subs.slice() : [],
-      q: '',
       portions: parseInt(portionSel.value, 10) || BASE_PORTIONS,
       size: sizeSel.value,
       rowsBySub: {},
@@ -649,12 +628,6 @@
       return String(v).replace('.', ',');
     }
 
-    function matchesQ(row){
-      const q = state.q.trim().toLowerCase();
-      if (!q) return true;
-      return (`${row.name} ${row.unit}`).toLowerCase().includes(q);
-    }
-
     function renderSubs(){
       subsWrap.textContent = '';
 
@@ -702,21 +675,7 @@
         left.appendChild(titleRow);
         left.appendChild(meta);
 
-        const right = document.createElement('div');
-        right.style.display = 'flex';
-        right.style.gap = '8px';
-        right.style.flexWrap = 'wrap';
-        right.style.alignItems = 'center';
-
-        const btnCook = document.createElement('button');
-        btnCook.className = 'btn';
-        btnCook.type = 'button';
-        btnCook.textContent = 'Tillagning';
-        btnCook.addEventListener('click', () => setCookTab(s.id));
-        right.appendChild(btnCook);
-
         head.appendChild(left);
-        head.appendChild(right);
         card.appendChild(head);
 
         const wrap = document.createElement('div');
@@ -750,7 +709,7 @@
         thead.appendChild(trh);
 
         const tbody = document.createElement('tbody');
-        const rows = (state.rowsBySub[s.id] || []).filter(matchesQ);
+        const rows = (state.rowsBySub[s.id] || []);
 
         for (const r of rows){
           const tr = document.createElement('tr');
@@ -907,7 +866,6 @@
       state.cook.activeKey = key;
       renderCookTabs();
       renderCookEditor();
-      try { cookTabs.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch {}
     }
 
     function saveCookActive(){
@@ -925,9 +883,7 @@
       setTimeout(() => { cookSaveNote.textContent = ''; }, 2000);
       renderCookEditor();
     }
-
     saveCooking.addEventListener('click', saveCookActive);
-    goCooking.addEventListener('click', () => setCookTab('meal'));
 
     function refreshDrawer(){
       const p = state.portions || BASE_PORTIONS;
@@ -979,20 +935,11 @@
     elBack.addEventListener('click', () => history.back());
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === '/' && document.activeElement !== elQ){
-        e.preventDefault();
-        elQ.focus();
-      }
       if (e.key === 'Escape'){
         closeDrawer();
         closeHelp();
         closeProdPop();
       }
-    });
-
-    elQ.addEventListener('input', () => {
-      state.q = elQ.value;
-      renderSubs();
     });
 
     portionSel.addEventListener('change', () => {
