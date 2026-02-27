@@ -11,6 +11,14 @@
        offerLabel    (t.ex. “Anbud”)
        co2PerKg      (t.ex. “2.2 kg CO₂e/kg”)
    - Behåller: articleNo, gtin, img (data-url SVG)
+
+   PATCH v2 (STÄDNING underrecept):
+   - mr1 (“Fiskpanetter med kokt potatis och remouladsås”) ska ha EXAKT 3 underrecept:
+       1 Fiskpanetter
+       2 Kokt potatis (bas)
+       3 Remouladsås
+   - Tar bort “Panering (standard)” ur fejkdata (sr5) och ur referenser.
+   - Flyttar “Fiskpanetter” + “Citron” från mr1.ingredients -> underrecept “Fiskpanetter”.
 ============================================================ */
 
 function svgDataUrl(label = "Produkt") {
@@ -107,7 +115,7 @@ function withProductCardFields(it) {
 }
 
 export function getMockDB() {
-  // Underrecept (5 st)
+  // Underrecept (5 st) — PATCH v2: ersätter Panering med Fiskpanetter
   const subRecipes = [
     {
       id: "sr1",
@@ -120,7 +128,7 @@ export function getMockDB() {
       co2: "—",
       energy: "—",
       size: "—",
-      desc: "Kall sås till fisk och panering.",
+      desc: "Kall sås till fisk.",
       ingredients: [
         withProductCardFields({ name: "Majonnäs", qty: "0.8", unit: "kg", price: "—", articleNo: "A-1001", gtin: "0731234567001", img: svgDataUrl("Majonnäs"), status: "active" }),
         withProductCardFields({ name: "Pickles", qty: "0.2", unit: "kg", price: "—", articleNo: "A-1002", gtin: "0731234567002", img: svgDataUrl("Pickles"), status: "active" }),
@@ -183,24 +191,25 @@ export function getMockDB() {
       ],
       history: [{ date: "2026-02-01", change: "Markerad inaktiv (demo)" }]
     },
+
+    // NYTT (PATCH v2): Fiskpanetter som eget underrecept
     {
-      id: "sr5",
+      id: "sr6",
       type: "sub",
-      name: "Panering (standard)",
-      mealName: "Panering (standard)",
+      name: "Fiskpanetter",
+      mealName: "Fiskpanetter",
       status: "active",
-      cat: "bas",
-      price: "4,70 kr",
+      cat: "protein",
+      price: "—",
       co2: "—",
       energy: "—",
       size: "—",
-      desc: "Standard-panering för fisk/kyckling.",
+      desc: "Fiskkomponent till husman.",
       ingredients: [
-        withProductCardFields({ name: "Ströbröd", qty: "1.0", unit: "kg", price: "—", articleNo: "A-5001", gtin: "0731234567041", img: svgDataUrl("Ströbröd"), status: "active" }),
-        withProductCardFields({ name: "Ägg", qty: "12", unit: "st", price: "—", articleNo: "3464-B", gtin: "0731234567032", img: svgDataUrl("Ägg"), status: "active" }),
-        withProductCardFields({ name: "Mjöl", qty: "0.6", unit: "kg", price: "—", articleNo: "A-5003", gtin: "0731234567043", img: svgDataUrl("Mjöl"), status: "active" })
+        withProductCardFields({ name: "Fiskpanetter", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9001", gtin: "0731234567091", img: svgDataUrl("Fisk"), status: "active" }),
+        withProductCardFields({ name: "Citron", qty: "0.2", unit: "kg", price: "—", articleNo: "A-9002", gtin: "0731234567092", img: svgDataUrl("Citron"), status: "active" })
       ],
-      history: []
+      history: [{ date: "2026-02-20", change: "Underrecept skapat (demo)" }]
     }
   ];
 
@@ -218,11 +227,10 @@ export function getMockDB() {
       energy: "—",
       size: "500 g",
       desc: "Klassisk husman med tre komponenter.",
-      subRecipeIds: ["sr5", "sr2", "sr1"],
-      ingredients: [
-        withProductCardFields({ name: "Fiskpanetter", qty: "2.5", unit: "kg", price: "—", articleNo: "A-9001", gtin: "0731234567091", img: svgDataUrl("Fisk"), status: "active" }),
-        withProductCardFields({ name: "Citron", qty: "0.2", unit: "kg", price: "—", articleNo: "A-9002", gtin: "0731234567092", img: svgDataUrl("Citron"), status: "active" })
-      ],
+      // PATCH v2: exakt 3 underrecept (Fiskpanetter, Potatis, Remoulad)
+      subRecipeIds: ["sr6", "sr2", "sr1"],
+      // PATCH v2: inga “meal-level” ingredienser här (för att inte skapa extra dump-sektion)
+      ingredients: [],
       history: [{ date: "2026-02-20", change: "Leverantör uppdaterade pris (demo)" }]
     },
     {
@@ -510,7 +518,8 @@ export function getDisabledIngredientsMock() {
       sev: "p0",
       price: "32.06",
       recipes: [
-        { name: "Panering (standard)", status: "active" },
+        // PATCH v2: “Panering (standard)” bortstädad
+        { name: "Fiskpanetter", status: "active" },
         { name: "Vitvinssås med ägg", status: "inactive" },
         { name: "Fiskpanetter med kokt potatis och remouladsås", status: "active" }
       ]
