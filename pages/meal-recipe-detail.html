@@ -1,10 +1,14 @@
 <!-- ============================================================
      FIL: pages/meal-recipe-detail.html  (HEL FIL)
      Sida 4: Måltidsrecept detalj / arbetsyta
-     Patch:
+
+     PATCH v2:
        - Läs ?id= och ladda måltidsrecept från FEJKDATA (assets/js/app.js)
-       - Visa underrecept + ingredienser
-       - Flytta sök till hero/arbetsyta (inte i topbar)
+       - Visa underrecept + ingredienser (sök filtrerar)
+       - NYTT: Bäst före per ingrediens (datumfält)
+       - NYTT: Tydlig tillagning per delrecept (flikar: Översikt + varje underrecept)
+       - Klick på underrecept -> öppnar rätt tillagningsflik
+       - Sök ligger i hero/arbetsyta (inte i topbar)
        - Hjälp-popover i topbar
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
@@ -29,7 +33,6 @@
         </div>
       </div>
 
-      <!-- sök flyttat ner -->
       <div class="centerSlot"></div>
 
       <div class="rightSlot" style="position:relative;">
@@ -69,7 +72,8 @@
             <li>Sidan öppnas med <span class="kbd">?id=mrX</span> från Receptlistan.</li>
             <li>Du ser underrecept + ingredienser i listan.</li>
             <li>Sök filtrerar ingredienslistan.</li>
-            <li>Klimat & näring öppnas i eget fönster (högerpanel).</li>
+            <li>Tillagning är uppdelad per underrecept (flikar).</li>
+            <li>Klimat & näring öppnas i högerpanel.</li>
           </ul>
         </div>
       </div>
@@ -149,7 +153,7 @@
         <div class="flexBetween">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:900;">Underrecept & ingredienser</h2>
-            <div class="muted small">Underrecept visas först. Ingredienser filtreras av sökfältet.</div>
+            <div class="muted small">Klicka underrecept för att hoppa till rätt tillagning. Sök filtrerar tabellen.</div>
           </div>
           <button class="btn" id="addRow">+ Lägg till</button>
         </div>
@@ -157,19 +161,26 @@
         <hr class="hr" />
 
         <div class="card" style="padding:14px; box-shadow:none;">
-          <div style="font-weight:900;">Underrecept</div>
-          <div class="muted small" id="subsHint" style="margin-top:6px;">—</div>
-          <ul id="subsList" style="margin:10px 0 0 18px;"></ul>
+          <div class="flexBetween" style="align-items:flex-start; gap:10px;">
+            <div>
+              <div style="font-weight:900;">Underrecept</div>
+              <div class="muted small" id="subsHint" style="margin-top:6px;">—</div>
+            </div>
+            <button class="btn" id="goCooking" type="button" title="Visa tillagning">Visa tillagning</button>
+          </div>
+
+          <ul id="subsList" style="margin:10px 0 0 0; padding:0; list-style:none;"></ul>
         </div>
 
         <div class="card mt16 tableCard" style="box-shadow:none;">
           <table class="table" aria-label="Ingredienser">
             <thead>
               <tr>
-                <th style="width:44%;">Ingrediens</th>
-                <th style="width:18%;">Mängd</th>
-                <th style="width:18%;">Enhet</th>
-                <th style="width:14%;">Källa</th>
+                <th style="width:34%;">Ingrediens</th>
+                <th style="width:14%;">Mängd</th>
+                <th style="width:12%;">Enhet</th>
+                <th style="width:16%;">Bäst före</th>
+                <th style="width:18%;">Källa</th>
                 <th class="actions" style="width:6%;">—</th>
               </tr>
             </thead>
@@ -182,33 +193,49 @@
         </div>
       </section>
 
-      <!-- RIGHT: Text / instruktioner -->
+      <!-- RIGHT: Tillagning per delrecept -->
       <aside class="card" style="padding:18px;">
-        <h2 style="margin:0; font-size:16px; font-weight:900;">Gör så här</h2>
-        <p class="muted small" style="margin-top:6px;">Håll instruktioner här. Klimat/näring öppnas i eget fönster.</p>
-
-        <div class="field mt16">
-          <label for="title">Rubrik</label>
-          <input class="input" id="title" type="text" />
+        <div class="flexBetween" style="align-items:flex-start; gap:12px;">
+          <div>
+            <h2 style="margin:0; font-size:16px; font-weight:900;">Tillagning</h2>
+            <p class="muted small" style="margin-top:6px;">Uppdelat per delrecept för att bli tydligt i produktion.</p>
+          </div>
+          <span class="badge badgeMuted" id="cookBadge">—</span>
         </div>
 
-        <div class="field">
-          <label for="desc">Beskrivning</label>
-          <textarea class="input" id="desc" rows="4" style="resize:vertical;"></textarea>
-        </div>
+        <div class="tabs mt12" role="tablist" aria-label="Tillagningsflikar" id="cookTabs"></div>
 
-        <div class="field">
-          <label for="steps">Instruktioner</label>
-          <textarea class="input" id="steps" rows="10" style="resize:vertical;"></textarea>
-        </div>
+        <div class="card mt12" style="padding:14px; box-shadow:none;">
+          <div class="muted small" id="cookHint">—</div>
 
-        <div class="field">
-          <label for="note">Notering</label>
-          <textarea class="input" id="note" rows="4" style="resize:vertical;" placeholder="Intern notering…"></textarea>
-        </div>
+          <div class="field mt12">
+            <label for="cookTitle">Rubrik</label>
+            <input class="input" id="cookTitle" type="text" />
+          </div>
 
-        <button class="btn btnPrimary w100" id="saveText">Spara text (demo)</button>
-        <p class="muted small mt12" id="textNote"></p>
+          <div class="field">
+            <label for="cookDesc">Beskrivning</label>
+            <textarea class="input" id="cookDesc" rows="3" style="resize:vertical;"></textarea>
+          </div>
+
+          <div class="field">
+            <label for="cookSteps">Instruktioner (steg)</label>
+            <textarea class="input" id="cookSteps" rows="9" style="resize:vertical;" placeholder="1. …&#10;2. …"></textarea>
+          </div>
+
+          <div class="field">
+            <label for="cookNote">Notering</label>
+            <textarea class="input" id="cookNote" rows="3" style="resize:vertical;" placeholder="Intern notering…"></textarea>
+          </div>
+
+          <button class="btn btnPrimary w100" id="saveCooking" type="button">Spara tillagning (demo)</button>
+          <p class="muted small mt12" id="cookSaveNote"></p>
+
+          <hr class="hr" />
+
+          <div style="font-weight:900;">Förhandsvisning</div>
+          <ol class="muted small" id="cookPreview" style="margin:8px 0 0 18px;"></ol>
+        </div>
       </aside>
 
     </div>
@@ -286,11 +313,14 @@
 
     const $ = (sel) => document.querySelector(sel);
 
-    // Help popover
+    // Help popover (stabil toggle)
     const helpBtn = $('#helpBtn');
     const helpPop = $('#helpPop');
     const helpClose = $('#helpClose');
+    let helpOpen = false;
+
     function openHelp(){
+      helpOpen = true;
       helpPop.style.display = '';
       helpBtn.setAttribute('aria-expanded', 'true');
       setTimeout(() => {
@@ -304,12 +334,12 @@
       }, 0);
     }
     function closeHelp(){
+      helpOpen = false;
       helpPop.style.display = 'none';
       helpBtn.setAttribute('aria-expanded', 'false');
     }
     helpBtn.addEventListener('click', () => {
-      const open = helpPop.style.display !== 'none' && helpPop.style.display !== '';
-      if (open) closeHelp(); else openHelp();
+      if (helpOpen) closeHelp(); else openHelp();
     });
     helpClose.addEventListener('click', closeHelp);
 
@@ -348,69 +378,116 @@
     const subsHint = $('#subsHint');
     const subsList = $('#subsList');
 
-    const title = $('#title');
-    const desc = $('#desc');
-    const steps = $('#steps');
-    const note = $('#note');
-
     const portionSel = $('#portionSel');
     const sizeSel = $('#sizeSel');
     const saveBtn = $('#saveBtn');
     const saveNote = $('#saveNote');
+
+    // Cooking UI
+    const cookTabs = $('#cookTabs');
+    const cookBadge = $('#cookBadge');
+    const cookHint = $('#cookHint');
+    const cookTitle = $('#cookTitle');
+    const cookDesc = $('#cookDesc');
+    const cookSteps = $('#cookSteps');
+    const cookNote = $('#cookNote');
+    const cookPreview = $('#cookPreview');
+    const saveCooking = $('#saveCooking');
+    const cookSaveNote = $('#cookSaveNote');
+    const goCooking = $('#goCooking');
 
     // Load from ?id=
     const db = getMockDB();
     const params = new URLSearchParams(location.search);
     const id = params.get('id') || db.meals[0]; // fallback första måltiden
 
-    const { meal, subs } = expandMeal(db, id);
+    const { meal } = expandMeal(db, id);
 
     // Fail-closed-ish: om id inte är måltid
     const activeMeal = (meal && meal.type === 'meal') ? meal : db.byId.get(db.meals[0]);
     const expanded = expandMeal(db, activeMeal.id);
 
+    // State
     const state = {
       meal: expanded.meal,
       subs: expanded.subs,
       q: '',
-      // ingredienser i tabell = meal-level + (valfritt) subs-ingredienser sammanfattade
       rows: [],
-      editsText: {
-        title: expanded.meal.name,
-        desc: expanded.meal.desc || '',
-        steps: '1. Förbered ingredienser.\n2. Tillaga enligt rutin.\n3. Smaka av.\n4. Servera.',
-        note: ''
-      },
       portions: parseInt(portionSel.value, 10) || 25,
-      size: sizeSel.value
+      size: sizeSel.value,
+
+      // Tillagning per flik: key = "meal" eller sub.id
+      cook: {
+        activeKey: 'meal',
+        byKey: {} // { [key]: { title, desc, steps, note } }
+      }
     };
 
+    // Helpers
+    function uid(prefix){
+      return prefix + '_' + Math.random().toString(16).slice(2);
+    }
+    function safeStr(v){
+      return (v === null || v === undefined) ? '' : String(v);
+    }
+    function normalizeSteps(text){
+      const raw = safeStr(text).trim();
+      if (!raw) return [];
+      // split på radbrytningar, ta bort tomrader
+      return raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
+
+    function initCook(){
+      // Översikt (meal)
+      state.cook.byKey['meal'] = {
+        title: state.meal.name,
+        desc: state.meal.desc || '',
+        steps: '1. Förbered ingredienser.\n2. Tillaga underrecept.\n3. Montera måltiden.\n4. Servera.',
+        note: ''
+      };
+
+      // Ett block per underrecept
+      for (const s of state.subs){
+        state.cook.byKey[s.id] = {
+          title: s.name,
+          desc: s.desc || '',
+          steps: '1. Förbered.\n2. Tillaga.\n3. Klart.',
+          note: ''
+        };
+      }
+    }
+
     function buildRows(){
-      // Meal-level ingredienser (källa = Måltid)
       const out = [];
+
+      // Meal-level ingredienser (källa = Måltid)
       const mIng = Array.isArray(state.meal.ingredients) ? state.meal.ingredients : [];
       for (const it of mIng){
         out.push({
-          id: 'm_' + Math.random().toString(16).slice(2),
-          name: it.name,
-          qty: String(it.qty ?? ''),
-          unit: String(it.unit ?? ''),
+          id: uid('m'),
+          name: safeStr(it.name),
+          qty: safeStr(it.qty ?? ''),
+          unit: safeStr(it.unit ?? 'g'),
+          bestBefore: '',       // NYTT
           source: 'Måltid'
         });
       }
-      // Underrecept ingredienser (källa = underrecept namn) – håller det enkelt: 1 rad per ingrediens
+
+      // Underrecept ingredienser (källa = underrecept namn)
       for (const s of state.subs){
         const sIng = Array.isArray(s.ingredients) ? s.ingredients : [];
         for (const it of sIng){
           out.push({
-            id: 's_' + Math.random().toString(16).slice(2),
-            name: it.name,
-            qty: String(it.qty ?? ''),
-            unit: String(it.unit ?? ''),
+            id: uid('s'),
+            name: safeStr(it.name),
+            qty: safeStr(it.qty ?? ''),
+            unit: safeStr(it.unit ?? 'g'),
+            bestBefore: '',       // NYTT
             source: s.name
           });
         }
       }
+
       state.rows = out;
     }
 
@@ -427,18 +504,50 @@
 
       subsHint.textContent = state.subs.length ? 'Ingår i måltiden:' : 'Inga underrecept kopplade.';
       subsList.textContent = '';
+
       for (const s of state.subs){
         const li = document.createElement('li');
-        li.textContent = s.name + (s.status === 'inactive' ? ' (inaktiv)' : '');
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+        li.style.justifyContent = 'space-between';
+        li.style.gap = '10px';
+        li.style.padding = '10px 10px';
+        li.style.border = '1px solid var(--border)';
+        li.style.borderRadius = '12px';
+        li.style.marginTop = '8px';
+        li.style.cursor = 'pointer';
+
+        const left = document.createElement('div');
+        const title = document.createElement('div');
+        title.style.fontWeight = '900';
+        title.textContent = s.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'muted small';
+        meta.textContent = (s.status === 'inactive') ? 'Inaktiv' : 'Aktiv';
+
+        left.appendChild(title);
+        left.appendChild(meta);
+
+        const right = document.createElement('div');
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.type = 'button';
+        btn.textContent = 'Tillagning';
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setCookTab(s.id);
+        });
+
+        right.appendChild(btn);
+
+        li.appendChild(left);
+        li.appendChild(right);
+
+        li.addEventListener('click', () => setCookTab(s.id));
         subsList.appendChild(li);
       }
-    }
-
-    function renderText(){
-      title.value = state.editsText.title;
-      desc.value = state.editsText.desc;
-      steps.value = state.editsText.steps;
-      note.value = state.editsText.note;
     }
 
     function matchesRow(r){
@@ -449,7 +558,9 @@
 
     function renderTable(){
       elTbody.textContent = '';
-      for (const r of state.rows.filter(matchesRow)){
+
+      const rows = state.rows.filter(matchesRow);
+      for (const r of rows){
         const tr = document.createElement('tr');
 
         const tdName = document.createElement('td');
@@ -474,6 +585,15 @@
         unit.addEventListener('change', () => r.unit = unit.value);
         tdUnit.appendChild(unit);
 
+        // NYTT: Bäst före
+        const tdBB = document.createElement('td');
+        const bb = document.createElement('input');
+        bb.className = 'input';
+        bb.type = 'date';
+        bb.value = r.bestBefore;
+        bb.addEventListener('change', () => r.bestBefore = bb.value);
+        tdBB.appendChild(bb);
+
         const tdSrc = document.createElement('td');
         tdSrc.textContent = r.source;
 
@@ -492,6 +612,7 @@
         tr.appendChild(tdName);
         tr.appendChild(tdQty);
         tr.appendChild(tdUnit);
+        tr.appendChild(tdBB);
         tr.appendChild(tdSrc);
         tr.appendChild(tdAct);
 
@@ -499,6 +620,7 @@
       }
     }
 
+    // Drawer open/close
     function openDrawer(){
       refreshDrawer();
       elOverlay.classList.add('open');
@@ -517,7 +639,6 @@
       $('#co2Per').textContent = '—';
       $('#energyDist').textContent = '—';
       $('#mealSize').textContent = state.size;
-
       $('#dSub').textContent = `${p} portioner • ${state.size}`;
 
       const hist = $('#histBox');
@@ -534,6 +655,92 @@
         div.textContent = `${h.date} • ${h.change}`;
         hist.appendChild(div);
       }
+    }
+
+    // Cooking tabs
+    function renderCookTabs(){
+      cookTabs.textContent = '';
+
+      const mkBtn = (key, label) => {
+        const b = document.createElement('button');
+        b.className = 'tab' + (state.cook.activeKey === key ? ' active' : '');
+        b.type = 'button';
+        b.dataset.key = key;
+        b.textContent = label;
+        b.addEventListener('click', () => setCookTab(key));
+        return b;
+      };
+
+      cookTabs.appendChild(mkBtn('meal', 'Översikt'));
+
+      for (const s of state.subs){
+        cookTabs.appendChild(mkBtn(s.id, s.name));
+      }
+
+      const activeLabel = (state.cook.activeKey === 'meal')
+        ? 'Översikt'
+        : (state.subs.find(x => x.id === state.cook.activeKey)?.name || 'Delrecept');
+
+      cookBadge.textContent = activeLabel;
+    }
+
+    function renderCookEditor(){
+      const key = state.cook.activeKey;
+      const data = state.cook.byKey[key] || { title:'', desc:'', steps:'', note:'' };
+
+      cookTitle.value = data.title;
+      cookDesc.value = data.desc;
+      cookSteps.value = data.steps;
+      cookNote.value = data.note;
+
+      const hint = (key === 'meal')
+        ? 'Översikt för hela måltiden. Här kan du skriva hur allt monteras och serveras.'
+        : 'Tillagning för valt underrecept. Håll det kort och stegvis.';
+
+      cookHint.textContent = hint;
+
+      // Preview
+      cookPreview.textContent = '';
+      const items = normalizeSteps(data.steps);
+      if (items.length === 0){
+        const li = document.createElement('li');
+        li.textContent = '—';
+        cookPreview.appendChild(li);
+      } else {
+        items.forEach(line => {
+          const li = document.createElement('li');
+          li.textContent = line;
+          cookPreview.appendChild(li);
+        });
+      }
+    }
+
+    function setCookTab(key){
+      if (!state.cook.byKey[key]) return;
+      state.cook.activeKey = key;
+      renderCookTabs();
+      renderCookEditor();
+      // scrolla till tillagning (högerpanelen)
+      // (mjuk scroll utan att bero på CSS)
+      try {
+        cookTabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch {}
+    }
+
+    function saveCookActive(){
+      const key = state.cook.activeKey;
+      if (!state.cook.byKey[key]) return;
+
+      state.cook.byKey[key] = {
+        title: cookTitle.value.trim() || state.cook.byKey[key].title,
+        desc: cookDesc.value,
+        steps: cookSteps.value,
+        note: cookNote.value
+      };
+
+      cookSaveNote.textContent = 'Sparat (demo).';
+      setTimeout(() => { cookSaveNote.textContent = ''; }, 2000);
+      renderCookEditor();
     }
 
     // Events
@@ -557,10 +764,11 @@
 
     $('#addRow').addEventListener('click', () => {
       state.rows.unshift({
-        id: 'x_' + Math.random().toString(16).slice(2),
+        id: uid('x'),
         name: 'Ny ingrediens',
         qty: '1',
         unit: 'st',
+        bestBefore: '',
         source: 'Måltid'
       });
       renderTable();
@@ -586,13 +794,8 @@
     elDClose.addEventListener('click', closeDrawer);
     tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 
-    $('#saveText').addEventListener('click', () => {
-      state.editsText.title = title.value.trim() || state.editsText.title;
-      state.editsText.desc = desc.value;
-      state.editsText.steps = steps.value;
-      state.editsText.note = note.value;
-      $('#textNote').textContent = 'Sparat (demo).';
-    });
+    goCooking.addEventListener('click', () => setCookTab('meal'));
+    saveCooking.addEventListener('click', saveCookActive);
 
     saveBtn.addEventListener('click', () => {
       saveNote.textContent = 'Sparat (demo).';
@@ -600,10 +803,12 @@
     });
 
     // Boot
+    initCook();
     buildRows();
     renderHeader();
-    renderText();
     renderTable();
+    renderCookTabs();
+    renderCookEditor();
     setTab('climate');
   </script>
 
