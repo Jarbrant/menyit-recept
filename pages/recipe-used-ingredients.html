@@ -1,7 +1,7 @@
 <!-- ============================================================
      FIL: pages/recipe-used-ingredients.html  (HEL FIL)
-     Sida 3: Använda ingredienser i recept
-     Patch: flytta sök till hero + hjälp-popover (som Sida 1)
+     PATCH: AO-USED-INGR-DEEPLINK-01 (FAS 1)
+     - Deep link: ?q=... => filtrera till 1 ingrediens + auto-öppna drawer (bild 3)
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (textContent)
 ============================================================ -->
 <!doctype html>
@@ -25,7 +25,6 @@
         </div>
       </div>
 
-      <!-- (Flyttat) Sökfältet ligger i hero nu -->
       <div class="centerSlot"></div>
 
       <div class="rightSlot" style="position:relative;">
@@ -79,7 +78,6 @@
       <h1 class="heroTitle">Spåra ingredienser</h1>
       <p class="heroSub">Håll listan ren. Öppna recept i eget fönster (högerpanel).</p>
 
-      <!-- Sökfält flyttat hit -->
       <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
         <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
@@ -235,7 +233,7 @@
     });
     helpClose.addEventListener('click', closeHelp);
 
-    // --- Page logic (befintlig) ---
+    // --- Page logic ---
     const $ = (sel) => document.querySelector(sel);
 
     const elBack = $('#backBtn');
@@ -361,6 +359,8 @@
         tr.addEventListener('click', () => openDrawer(it));
         elTbody.appendChild(tr);
       }
+
+      return rows;
     }
 
     function openDrawer(it){
@@ -457,6 +457,59 @@
       }
     }
 
+    // Deep link (AO-USED-INGR-DEEPLINK-01)
+    function readQParam(){
+      try {
+        const u = new URL(window.location.href);
+        const q = (u.searchParams.get('q') || '').trim();
+        return q;
+      } catch {
+        return '';
+      }
+    }
+
+    function findBestMatch(rows, q){
+      const qq = (q || '').trim().toLowerCase();
+      if (!qq) return null;
+
+      // 1) exakt namnmatch
+      const exact = rows.find(x => (x.name || '').toLowerCase() === qq);
+      if (exact) return exact;
+
+      // 2) startsWith namn
+      const sw = rows.find(x => (x.name || '').toLowerCase().startsWith(qq));
+      if (sw) return sw;
+
+      // 3) includes namn
+      const inc = rows.find(x => (x.name || '').toLowerCase().includes(qq));
+      if (inc) return inc;
+
+      return null;
+    }
+
+    function applyDeepLink(){
+      const q = readQParam();
+      if (!q) return;
+
+      // Sätt sök + render
+      elQ.value = q;
+      state.q = q;
+
+      const rows = render(); // returns filtered rows
+      if (!rows || rows.length === 0) return;
+
+      // Om listan filtrerats till 1 rad => öppna den
+      let pick = null;
+      if (rows.length === 1) pick = rows[0];
+      else pick = findBestMatch(rows, q);
+
+      if (!pick) return;
+
+      // Öppna drawer direkt + välj rätt tab
+      openDrawer(pick);
+      setTab('recipes');
+    }
+
     // Events
     elBack.addEventListener('click', () => history.back());
 
@@ -518,6 +571,7 @@
     // Boot
     setTab('recipes');
     render();
+    applyDeepLink();
   </script>
 
 </body>
