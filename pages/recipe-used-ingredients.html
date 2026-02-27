@@ -1,7 +1,9 @@
 <!-- ============================================================
      FIL: pages/recipe-used-ingredients.html  (HEL FIL)
-     PATCH: AO-USED-INGR-DEEPLINK-02 (FAS 1)
-     - Deep link: ?q=... => filtrera + auto-öppna drawer + auto-tab Recept
+     PATCH: AO-USED-INGR-DEEPLINK-03 (FAS 1)
+     - DB får gtin + articleNo
+     - Sök + ?q= matchar name + articleNo + gtin + receptnamn
+     - Deep link: om 1 träff => auto-öppna drawer
 ============================================================ -->
 <!doctype html>
 <html lang="sv">
@@ -61,7 +63,7 @@
 
           <div style="font-weight:900; margin-bottom:6px;">Så funkar sidan</div>
           <ul class="muted small" style="margin:0 0 0 18px;">
-            <li>Sök ingrediens/recept med textfältet.</li>
+            <li>Sök ingrediens/recept med textfältet (namn, artikelnummer, GTIN).</li>
             <li>Klicka på en rad eller “Visa” för panelen.</li>
             <li>I panelen kan du se recept, byta ut (demo) och skriva notering.</li>
           </ul>
@@ -257,10 +259,13 @@
     };
 
     // Mock: ingrediens -> receptlista
+    // NYTT: gtin + articleNo så ?q=073... funkar.
     const DB = [
       {
         id:'u1',
         name:'Ägg',
+        articleNo:'3464-B',
+        gtin:'0731234567032',
         price:'32.06',
         recipes:[
           { name:'Panering 1', status:'active' },
@@ -273,6 +278,8 @@
       {
         id:'u2',
         name:'Rismix',
+        articleNo:'A-9006',
+        gtin:'0731234567096',
         price:'—',
         recipes:[
           { name:'Biffstroganoff med ris', status:'active' },
@@ -282,6 +289,8 @@
       {
         id:'u3',
         name:'Vitvin',
+        articleNo:'A-4001',
+        gtin:'0731234567031',
         price:'—',
         recipes:[
           { name:'Koljafilé med vitvinssås', status:'inactive' }
@@ -289,7 +298,6 @@
       }
     ];
 
-    // Mock: ersättningskatalog
     const CATALOG = [
       { id:'c1', name:'Ägg frigående M/L 15-pack', price:'29.90' },
       { id:'c2', name:'Ägg ekologiska M/L', price:'34.50' },
@@ -307,14 +315,16 @@
       repQ: '',
       repPick: null,
       noteById: new Map(),
-      didAutoOpen: false, // skydd så vi inte auto-öppnar flera gånger
+      didAutoOpen: false
     };
 
     function matches(item){
       if (item.recipes.length < state.min) return false;
+
       const q = state.q.trim().toLowerCase();
       if (!q) return true;
-      const hay = `${item.name} ${item.recipes.map(r=>r.name).join(' ')}`.toLowerCase();
+
+      const hay = `${item.name} ${item.articleNo || ''} ${item.gtin || ''} ${item.recipes.map(r=>r.name).join(' ')}`.toLowerCase();
       return hay.includes(q);
     }
 
@@ -360,7 +370,7 @@
         elTbody.appendChild(tr);
       }
 
-      // AUTO: om vi har exakt 1 rad och vi kommer från deep-link, öppna den direkt
+      // Auto-öppna vid deep-link om listan blir exakt 1 rad
       if (!state.didAutoOpen && state.q.trim() && rows.length === 1){
         state.didAutoOpen = true;
         openDrawer(rows[0]);
@@ -377,7 +387,11 @@
       $('#repNote').textContent = '';
 
       elDTitle.textContent = it.name;
-      elDSub.textContent = `${it.recipes.length} recept`;
+      const metaBits = [];
+      if (it.articleNo) metaBits.push(`Artikel: ${it.articleNo}`);
+      if (it.gtin) metaBits.push(`GTIN: ${it.gtin}`);
+      metaBits.push(`${it.recipes.length} recept`);
+      elDSub.textContent = metaBits.join(' • ');
 
       renderRecipeList();
       renderRepList();
@@ -479,11 +493,9 @@
 
       elQ.value = q;
       state.q = q;
-
-      // Reset auto-open guard vid ny deeplink
       state.didAutoOpen = false;
 
-      // Render kommer auto-öppna om exakt 1 träff
+      // render() hanterar auto-open om 1 träff
       render();
     }
 
@@ -501,7 +513,11 @@
       }
     });
 
-    elQ.addEventListener('input', () => { state.q = elQ.value; state.didAutoOpen = true; render(); });
+    elQ.addEventListener('input', () => {
+      state.q = elQ.value;
+      state.didAutoOpen = true; // användaren styr nu, ingen auto-open
+      render();
+    });
 
     elMin.addEventListener('change', () => {
       state.min = parseInt(elMin.value, 10) || 0;
