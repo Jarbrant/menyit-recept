@@ -1,10 +1,9 @@
 <!-- ============================================================
      FIL: pages/recipes.html  (HEL FIL)
      Sida 1: Receptlista (modern)
-     PATCH: AO-RECIPES-SEARCH-02 (FAS 1)
-     - Topbar: ta bort Fel-ingr + Anv-ingr (förkortningar ska inte användas)
-     - Hjälp kvar
-     - Behåller: flyttat sökfält + hjälp-popover + +Skapa ny
+     PATCH: AO-RECIPES-INGMODE-01 (FAS 1)
+     - Typ: lägg till "Ingredienser" (value="ingredient")
+     - Topbar: Fel-ingr + Anv-ingr är borttagna (Hjälp kvar)
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent)
 ============================================================ -->
 <!doctype html>
@@ -34,11 +33,7 @@
       <div class="rightSlot" style="position:relative;">
         <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false">Hjälp</button>
 
-        <!-- BORTTAGET (AO-RECIPES-SEARCH-02): Fel ingrediens + Använda ingredienser
-             Tidigare:
-             <a class="btn" href="./recipe-disabled-ingredients.html" ...>Fel-ingr</a>
-             <a class="btn" href="./recipe-used-ingredients.html" ...>Anv-ingr</a>
-        -->
+        <!-- BORTTAGET: Fel-ingr + Anv-ingr (förkortningar ska inte användas) -->
 
         <button class="btn btnPrimary" id="createBtn">+ Skapa ny</button>
 
@@ -87,7 +82,7 @@
       <h1 class="heroTitle">Sök recept</h1>
       <p class="heroSub">Skriv för att filtrera. Klicka på en rad för att öppna detaljer i ett eget fönster.</p>
 
-      <!-- Sökfältet flyttat hit (som du markerade) -->
+      <!-- Sökfältet flyttat hit -->
       <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
         <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
@@ -103,6 +98,8 @@
             <option value="all">Alla</option>
             <option value="meal">Måltidsrecept</option>
             <option value="sub">Underrecept</option>
+            <!-- NYTT (AO-RECIPES-INGMODE-01) -->
+            <option value="ingredient">Ingredienser</option>
           </select>
         </div>
 
@@ -139,7 +136,7 @@
       <div class="meta" id="meta">0 träffar</div>
     </div>
 
-    <!-- TABELL (endast "måste-kolumner") -->
+    <!-- TABELL -->
     <section class="card tableCard">
       <table class="table" id="tbl" aria-label="Receptlista">
         <thead>
@@ -158,7 +155,7 @@
 
   </main>
 
-  <!-- SELECTION PANEL (Bild 5-stil, visas vid markeringar) -->
+  <!-- SELECTION PANEL -->
   <aside class="selectionPanel" id="selPanel" aria-label="Valda recept">
     <div class="selectionHeader">
       <div class="title">Valda recept (<span id="selCount">0</span>)</div>
@@ -262,7 +259,7 @@
     </div>
   </aside>
 
-  <!-- Page init: använder 10 fejk-recept -->
+  <!-- Page init -->
   <script type="module">
     import { initRecipesPage } from '../assets/js/pages/recipes.page.js';
     initRecipesPage();
