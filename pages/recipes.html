@@ -1,9 +1,9 @@
 <!-- ============================================================
      FIL: pages/recipes.html  (HEL FIL)
      Sida 1: Receptlista (modern)
-     PATCH: AO-RECIPES-INGMODE-01 (FAS 1)
-     - Typ: lägg till "Ingredienser" (value="ingredient")
-     - Topbar: Fel-ingr + Anv-ingr är borttagna (Hjälp kvar)
+     PATCH: AO-RECIPES-REMOVE-COMPACT-01 (FAS 1)
+     - BORT: “Kompakt”-ruta (checkbox) i hero + all UI för den
+     - OBS: Om recipes.page.js använder #compactChk utan guard kan den behöva patchas också.
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent)
 ============================================================ -->
 <!doctype html>
@@ -27,7 +27,6 @@
         </div>
       </div>
 
-      <!-- (Flyttat) Sökfältet ligger i hero nu -->
       <div class="centerSlot"></div>
 
       <div class="rightSlot" style="position:relative;">
@@ -77,12 +76,11 @@
 
   <main class="container">
 
-    <!-- HERO (centralt sök – Bild 5 känsla) -->
+    <!-- HERO -->
     <section class="hero">
       <h1 class="heroTitle">Sök recept</h1>
       <p class="heroSub">Skriv för att filtrera. Klicka på en rad för att öppna detaljer i ett eget fönster.</p>
 
-      <!-- Sökfältet flyttat hit -->
       <div class="searchWrap" style="max-width:920px; width:100%; margin-top:12px;">
         <svg class="searchIcon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M10 4a6 6 0 1 1 3.87 10.58l4.28 4.28-1.42 1.42-4.28-4.28A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
@@ -98,7 +96,6 @@
             <option value="all">Alla</option>
             <option value="meal">Måltidsrecept</option>
             <option value="sub">Underrecept</option>
-            <!-- NYTT (AO-RECIPES-INGMODE-01) -->
             <option value="ingredient">Ingredienser</option>
           </select>
         </div>
@@ -124,10 +121,7 @@
           </select>
         </div>
 
-        <div class="chip">
-          <label for="compactChk">Kompakt</label>
-          <input id="compactChk" type="checkbox" aria-label="Kompakt vy" />
-        </div>
+        <!-- BORT: Kompakt -->
       </div>
     </section>
 
@@ -264,7 +258,7 @@
     import { initRecipesPage } from '../assets/js/pages/recipes.page.js';
     initRecipesPage();
 
-    // Hjälpruta (popover) – liten, enkel
+    // Hjälpruta (popover)
     const $ = (s) => document.querySelector(s);
     const btn = $('#helpBtn');
     const pop = $('#helpPop');
@@ -273,7 +267,6 @@
     function openHelp(){
       pop.style.display = '';
       btn.setAttribute('aria-expanded', 'true');
-      // Klick utanför stänger
       setTimeout(() => {
         const onDoc = (e) => {
           if (!pop.contains(e.target) && e.target !== btn){
