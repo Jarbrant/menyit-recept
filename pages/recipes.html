@@ -2,8 +2,9 @@
      FIL: pages/recipes.html  (HEL FIL)
      Sida 1: Receptlista (modern)
      PATCH: AO-RECIPES-REMOVE-COMPACT-01 (FAS 1)
-     - BORT: “Kompakt”-ruta (checkbox) i hero + all UI för den
-     - OBS: Om recipes.page.js använder #compactChk utan guard kan den behöva patchas också.
+     + PATCH: AO-RECIPES-TAB-RECIPE-LINK-01 (FAS 1)
+       - NYTT: Flik “Recept” (samma stil) som länkar till meal-recipe-detail.html
+       - Viktigt: INGEN data-tab på länken (så tab-script inte försöker växla panel)
      Policy: statisk GitHub Pages, inga externa libs, XSS-safe (render via textContent)
 ============================================================ -->
 <!doctype html>
@@ -179,6 +180,9 @@
         <button class="tab" data-tab="climate" type="button">Klimat & näring</button>
         <button class="tab" data-tab="ingredients" type="button">Ingredienser</button>
         <button class="tab" data-tab="history" type="button">Historik</button>
+
+        <!-- NYTT: “Recept” som ren navigationslänk (ingen data-tab för att inte störa tab-logiken) -->
+        <a class="tab" href="meal-recipe-detail.html">Recept</a>
       </div>
 
       <div id="tab_overview">
